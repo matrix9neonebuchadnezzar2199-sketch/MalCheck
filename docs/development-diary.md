@@ -199,6 +199,17 @@ Phase 2 is still hook-first. Normalizing payloads now reduces future breakage wh
 
 The previous README was functionally correct but minimal. The new README is intended for repository landing quality: clearer first impression, better onboarding flow, and stronger guidance for both users and contributors.
 
+## 2026-06-02: README language switch to Japanese
+
+### What changed
+
+- Reworked `README.md` text into Japanese while preserving the premium layout, badges, and section structure.
+- Kept technical keywords, command examples, and schema keys unchanged where exact notation is required.
+
+### Why this slice
+
+Primary project communication is currently Japanese-first, and repository landing text should match the expected reader language.
+
 ### Notes
 
 - Legacy fields are still supported in verdict scoring (`yara_matches` and `capa_matches`) for backward compatibility.

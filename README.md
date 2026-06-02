@@ -1,6 +1,6 @@
 # MalCheck
 
-> Unified Malware Analysis Orchestrator for local, offline-first workflows.
+> ローカル・オフライン運用を前提とした、統合マルウェア解析オーケストレーター
 
 [![Python](https://img.shields.io/badge/python-3.11+-3776AB?logo=python&logoColor=white)](#)
 [![FastAPI](https://img.shields.io/badge/web-fastapi-009688?logo=fastapi&logoColor=white)](#)
@@ -9,38 +9,38 @@
 [![Report](https://img.shields.io/badge/output-json%20%2B%20html-4C1)](#)
 [![Status](https://img.shields.io/badge/status-active-success)](#)
 
-**Tags:** malware-analysis, ghidra, yara, capa, triage, offline, usb-deploy, reverse-engineering
+**タグ:** malware-analysis, ghidra, yara, capa, triage, offline, usb-deploy, reverse-engineering
 
 ---
 
-## What MalCheck Is
+## MalCheck とは
 
-MalCheck is a **phase-based malware analysis orchestrator** that runs:
+MalCheck は、以下のフェーズを統合実行する **フェーズ指向マルウェア解析オーケストレーター** です。
 
-- **Phase 1 - Surface Analysis** (hashes, strings, IOC extraction, YARA/capa, entropy/packer hints)
-- **Phase 2 - Dynamic Analysis Contract** (hook-first, sandbox integration ready)
-- **Phase 3 - Static Analysis** (Ghidra headless in a network-isolated container)
+- **Phase 1 - 表層解析**（ハッシュ、文字列、IOC抽出、YARA/capa、エントロピー/パッカー推定）
+- **Phase 2 - 動的解析コントラクト**（hook first、将来のサンドボックス連携を前提）
+- **Phase 3 - 静的解析**（ネットワーク隔離した Ghidra headless）
 
-It generates:
+出力は次の2系統です。
 
-- **Machine-readable JSON report**
-- **Analyst-friendly HTML report**
+- **機械可読な JSON レポート**
+- **アナリスト向け HTML レポート**
 
-MalCheck is designed for **local and air-gapped environments** and keeps explicit safety boundaries for malware workflows.
+MalCheck は **ローカル環境・エアギャップ環境** での運用を想定し、マルウェア解析向けの安全境界を明示的に維持します。
 
-For Japanese docs, see [`README_JP.md`](README_JP.md).
+英語版が必要な場合は [`README_JP.md`](README_JP.md) を参考に、今後 `README.md` の英訳版を追加してください。
 
 ---
 
-## Product Positioning
+## プロダクトとしての位置づけ
 
-MalCheck is the orchestration home for integrated analysis.
+MalCheck は「統合解析の母艦」です。
 
-- Keep phase orchestration and report contract in `mau/`
-- Integrate richer static/reverse-engineering capabilities incrementally
-- Avoid monolithic one-shot rewrites
+- フェーズ制御とレポート契約は `mau/` に集約
+- 静的解析/RE機能は段階的に統合
+- 一発の大改修ではなく、スライス単位で進化
 
-Current architecture and roadmap:
+現行アーキテクチャとロードマップ:
 
 - [`docs/architecture.md`](docs/architecture.md)
 - [`docs/milestones.md`](docs/milestones.md)
@@ -49,56 +49,56 @@ Current architecture and roadmap:
 
 ---
 
-## Core Features
+## 主な機能
 
-### 1) Phase-Oriented Pipeline
+### 1) フェーズ指向パイプライン
 
-`mau.phase_router.run_pipeline()` orchestrates:
+`mau.phase_router.run_pipeline()` は次を制御します:
 
-- `surface` -> resilient fast triage
-- `dynamic` -> skipped / not_implemented / hook result
-- `static` -> Ghidra container execution
+- `surface` -> 高速かつ耐障害性を重視した初期トリアージ
+- `dynamic` -> skipped / not_implemented / hook結果
+- `static` -> Ghidraコンテナ実行
 
-Failures are isolated by phase and embedded into report payloads instead of crashing the full run.
+各フェーズの失敗は分離され、パイプライン全体を停止させる代わりにレポートへ構造化記録されます。
 
-### 2) Offline-First Deployment
+### 2) オフラインファースト運用
 
-- USB/offline packaging scripts are included
-- Air-gap-friendly deployment paths exist for Windows/Linux
-- Ghidra static analysis remains network-isolated by default
+- USB/オフライン配布向けスクリプトを同梱
+- Windows/Linux のエアギャップ導入パスを用意
+- Ghidra静的解析はデフォルトでネットワーク隔離
 
-### 3) Report-First Design
+### 3) レポート中心設計
 
-Every run produces structured report artifacts:
+すべての実行で、構造化レポートを生成します。
 
 - `results/reports/<sample>.json`
 - `results/reports/<sample>.html`
 
-Recent report contract includes:
+現行レポート契約の代表項目:
 
 - `meta.schema_version`
 - `phase_status.surface/dynamic/static`
 - normalized phase payloads
 
-### 4) Extensible Dynamic Integration
+### 4) 拡張可能な動的解析連携
 
-Dynamic analysis is intentionally hook-first:
+動的解析は意図的に hook first です。
 
-- Safe default: disabled (`skipped`)
-- Enabled without hook: `not_implemented`
-- Enabled with `MAU_DYNAMIC_HOOK`: normalized dynamic payload
+- 安全な既定値: disabled（`skipped`）
+- hook 未設定で enabled: `not_implemented`
+- `MAU_DYNAMIC_HOOK` 使用時: 正規化された dynamic payload
 
 ---
 
-## Quick Start
+## クイックスタート
 
-### A. Local Docker stack
+### A. ローカル Docker 実行
 
 ```text
 docker compose up -d
 ```
 
-Run one sample from orchestrator:
+オーケストレーターから検体を1件実行:
 
 ```text
 docker exec orchestrator python -m mau.main suspect.exe
@@ -110,25 +110,25 @@ Web UI:
 http://127.0.0.1:8080
 ```
 
-### B. FLARE VM / Offline workflow (Windows)
+### B. FLARE VM / オフライン運用（Windows）
 
-1. Prepare images on a connected host
-   - Place `ghidra_11.4.3_PUBLIC_20251203.zip` in `build/ghidra-headless/`
-   - Run:
+1. ネット接続可能な端末でイメージ準備
+   - `ghidra_11.4.3_PUBLIC_20251203.zip` を `build/ghidra-headless/` に配置
+   - 次を実行:
    ```text
    bash make_usb.sh
    ```
-2. On offline analysis machine:
+2. オフライン解析端末で実行:
    ```text
    deploy.bat
    ```
-3. Analyze:
+3. 解析実行:
    ```text
    copy suspect.exe samples\
    docker exec orchestrator python -m mau.main suspect.exe
    ```
 
-Stop:
+停止:
 
 ```text
 docker compose -f docker-compose.usb.yml --env-file compose\.env.runtime down
@@ -136,29 +136,29 @@ docker compose -f docker-compose.usb.yml --env-file compose\.env.runtime down
 
 ---
 
-## Ghidra Image Build
+## Ghidra イメージのビルド
 
-Build the static-analysis image after placing the Ghidra zip:
+Ghidra ZIP 配置後、静的解析イメージをビルドします。
 
 ```text
 docker build -t ghidra-headless:latest -f build/ghidra-headless/Dockerfile build/ghidra-headless
 ```
 
-If the image is missing, static phase records an error payload but the pipeline can still emit reports from other phases.
+このイメージが無い場合、Static フェーズはエラー payload を記録しますが、他フェーズの結果を使ったレポート生成は継続可能です。
 
 ---
 
-## Configuration
+## 設定
 
-Primary config file:
+主設定ファイル:
 
 - `compose/config/analyzer.yaml`
 
-Or override with env:
+環境変数での上書き:
 
 - `MAU_CONFIG=<path-to-yaml>`
 
-High-impact keys:
+影響度の高いキー:
 
 - `phases.dynamic.enabled`
 - `phases.static.ghidra_image`
@@ -168,28 +168,28 @@ High-impact keys:
 
 ---
 
-## Testing
+## テスト
 
-Host test command:
+ホスト側テストコマンド:
 
 ```text
 pip install -r requirements-dev.txt
 pytest tests -v
 ```
 
-The current suite validates:
+現行テストで確認している内容:
 
-- config loading/merge behavior
-- surface analyzer JSON contract
-- report aggregation and verdict logic
-- dynamic hook normalization
-- CLI error/exit behavior
+- 設定ロード / マージ挙動
+- 表層解析 JSON コントラクト
+- レポート集約と verdict ロジック
+- dynamic hook 出力の正規化
+- CLI のエラー / 終了コード挙動
 
 ---
 
-## Security and OPSEC Boundaries
+## セキュリティ / OPSEC 境界
 
-MalCheck is for malware analysis. Treat all sample-derived data as hostile.
+MalCheck はマルウェア解析用途です。検体由来データはすべて不正入力として扱ってください。
 
 - Do not commit samples, payloads, or IOC-heavy artifacts
 - Do not add automatic online IOC enrichment by default
@@ -200,7 +200,7 @@ See full rules in [`docs/implementation-rules.md`](docs/implementation-rules.md)
 
 ---
 
-## Repository Map
+## リポジトリ構成
 
 ```text
 mau/                     # core orchestrator and report generation
@@ -216,9 +216,9 @@ docs/                    # architecture, milestones, rules, diary
 
 ---
 
-## Roadmap Snapshot
+## ロードマップ概要
 
-Near-term milestones:
+直近マイルストーン:
 
 1. Surface analysis consolidation (stable scanner contract)
 2. Richer static output integration
@@ -230,7 +230,7 @@ Detailed plan: [`docs/milestones.md`](docs/milestones.md)
 
 ---
 
-## License / Usage Note
+## 利用上の注意
 
-This repository is intended for defensive research, reverse engineering, and controlled lab workflows.
-Use only in environments and jurisdictions where you are authorized to perform malware analysis.
+このリポジトリは、防御目的の研究、リバースエンジニアリング、管理されたラボ運用を想定しています。  
+マルウェア解析を行う法的権限と運用体制がある環境でのみ利用してください。
