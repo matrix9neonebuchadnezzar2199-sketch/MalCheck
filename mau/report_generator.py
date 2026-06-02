@@ -51,14 +51,38 @@ def calculate_verdict(
     reasons: list[str] = []
     score = 0
     if isinstance(surface, dict):
+        scanner_results = surface.get("scanner_results") or []
+        yara_count = 0
+        capa_count = 0
+        if isinstance(scanner_results, list):
+            for row in scanner_results:
+                if not isinstance(row, dict):
+                    continue
+                sname = str(row.get("scanner_name", ""))
+                findings = row.get("findings") or []
+                if not isinstance(findings, list):
+                    findings = []
+                if sname == "yara":
+                    yara_count += len(findings)
+                elif sname == "capa":
+                    capa_count += len(findings)
+
         capa = surface.get("capa_matches") or surface.get("capa") or []
+        if capa_count > 0:
+            score += min(40, capa_count * 5)
+            reasons.append(f"capa-like indicators: {capa_count}")
         if isinstance(capa, list) and len(capa) > 0:
-            score += min(40, len(capa) * 5)
-            reasons.append(f"capa-like indicators: {len(capa)}")
+            score += min(40, len(capa) * 5 if capa_count == 0 else 0)
+            if capa_count == 0:
+                reasons.append(f"capa-like indicators: {len(capa)}")
         yara = surface.get("yara_matches") or []
+        if yara_count > 0:
+            score += min(30, yara_count * 10)
+            reasons.append(f"yara matches: {yara_count}")
         if isinstance(yara, list) and len(yara) > 0:
-            score += min(30, len(yara) * 10)
-            reasons.append(f"yara matches: {len(yara)}")
+            score += min(30, len(yara) * 10 if yara_count == 0 else 0)
+            if yara_count == 0:
+                reasons.append(f"yara matches: {len(yara)}")
         packer = surface.get("packer") or {}
         if isinstance(packer, dict) and packer.get("detected"):
             score += 15

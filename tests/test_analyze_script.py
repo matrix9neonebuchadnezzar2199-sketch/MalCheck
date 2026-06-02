@@ -23,3 +23,7 @@ def test_analyze_emits_json(tmp_path):
     data = json.loads(proc.stdout)
     assert "hashes" in data
     assert "md5" in data["hashes"]
+    assert "scanner_results" in data
+    assert isinstance(data["scanner_results"], list)
+    assert any(x.get("scanner_name") == "yara" for x in data["scanner_results"])
+    assert "overall_risk" in data

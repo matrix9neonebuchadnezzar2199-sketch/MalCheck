@@ -16,6 +16,8 @@ import sys
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
+_RISK_ORD = {"safe": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
+
 
 def _sha256(path: Path) -> str:
     h = hashlib.sha256()
@@ -114,6 +116,38 @@ def _die_scan(sample: Path) -> Optional[dict[str, Any]]:
     return None
 
 
+def _risk_max(*levels: str) -> str:
+    best = "safe"
+    best_ord = _RISK_ORD[best]
+    for level in levels:
+        if not level:
+            continue
+        cur = _RISK_ORD.get(level, -1)
+        if cur > best_ord:
+            best = level
+            best_ord = cur
+    return best
+
+
+def _build_scanner_result(
+    name: str,
+    *,
+    success: bool,
+    risk: str = "safe",
+    findings: Optional[list[dict[str, Any]]] = None,
+    metadata: Optional[dict[str, Any]] = None,
+    error: Optional[str] = None,
+) -> dict[str, Any]:
+    return {
+        "scanner_name": name,
+        "success": success,
+        "risk": risk,
+        "findings": findings or [],
+        "metadata": metadata or {},
+        "error": error,
+    }
+
+
 def analyze(sample_path: str) -> dict[str, Any]:
     path = Path(sample_path)
     result: dict[str, Any] = {
@@ -129,6 +163,8 @@ def analyze(sample_path: str) -> dict[str, Any]:
         "yara_matches": [],
         "capa_matches": [],
         "mitre": [],
+        "scanner_results": [],
+        "overall_risk": "safe",
     }
 
     if not path.is_file():
@@ -165,6 +201,25 @@ def analyze(sample_path: str) -> dict[str, Any]:
     result["ips"] = sorted(ips)[:50]
 
     result["packer"] = {"detected": False, "detail": _die_scan(path)}
+    die_detail = result["packer"].get("detail")
+    if die_detail:
+        result["scanner_results"].append(
+            _build_scanner_result(
+                "die",
+                success=True,
+                risk="low",
+                findings=[
+                    {
+                        "rule": "die_detected",
+                        "description": "Detect It Easy returned a detection detail",
+                        "risk": "low",
+                        "details": die_detail,
+                    }
+                ],
+            )
+        )
+    else:
+        result["scanner_results"].append(_build_scanner_result("die", success=True, risk="safe"))
 
     rules_dir = Path(os.environ.get("RULES_DIR", "/rules"))
     if not rules_dir.is_dir():
@@ -172,17 +227,70 @@ def analyze(sample_path: str) -> dict[str, Any]:
         if rr.is_dir():
             rules_dir = rr
     result["yara_matches"] = _yara_scan(path, rules_dir)
+    result["scanner_results"].append(
+        _build_scanner_result(
+            "yara",
+            success=True,
+            risk="high" if result["yara_matches"] else "safe",
+            findings=[
+                {
+                    "rule": str(m.get("rule", "yara_match")),
+                    "description": "YARA match detected",
+                    "risk": "high",
+                    "details": {"file": m.get("file"), "strings": m.get("strings", [])},
+                }
+                for m in result["yara_matches"]
+                if isinstance(m, dict)
+            ],
+            metadata={"rules_dir": str(rules_dir)},
+        )
+    )
 
     capa = _capa_scan(path)
     result["capa_matches"] = capa[:200]
+    result["scanner_results"].append(
+        _build_scanner_result(
+            "capa",
+            success=True,
+            risk="medium" if result["capa_matches"] else "safe",
+            findings=[
+                {
+                    "rule": str(m.get("rule", "capa_match")),
+                    "description": "capa capability matched",
+                    "risk": "medium",
+                    "details": m if isinstance(m, dict) else {"value": m},
+                }
+                for m in result["capa_matches"][:50]
+            ],
+            metadata={"total_matches": len(result["capa_matches"])},
+        )
+    )
 
     if result["entropy"] and result["entropy"] > 7.2:
         result["packer"] = {"detected": True, "detail": result["packer"].get("detail"), "note": "high entropy"}
+        result["scanner_results"].append(
+            _build_scanner_result(
+                "entropy",
+                success=True,
+                risk="medium",
+                findings=[
+                    {
+                        "rule": "high_entropy",
+                        "description": "Sample entropy exceeded threshold",
+                        "risk": "medium",
+                        "details": {"entropy": result["entropy"], "threshold": 7.2},
+                    }
+                ],
+            )
+        )
+    else:
+        result["scanner_results"].append(_build_scanner_result("entropy", success=True, risk="safe"))
 
     for m in result["capa_matches"][:50]:
         if isinstance(m, dict) and m.get("rule"):
             result["mitre"].append({"source": "capa", "rule": m.get("rule")})
 
+    result["overall_risk"] = _risk_max(*(str(x.get("risk", "safe")) for x in result["scanner_results"]))
     return result
 
 

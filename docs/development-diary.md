@@ -107,3 +107,28 @@ Ghidra/static analysis should remain network-isolated. Dynamic analysis requires
 ### Next Recommended Work
 
 Start with Milestone 1 from `docs/milestones.md`: add a stable `phase1_surface.scanner_results` shape and decide how to adapt Cyber Ghidra scanner output without duplicating expensive YARA/capa scans.
+
+## 2026-06-02: Milestone 1 Slice 1 - Surface scanner_results baseline
+
+### What changed
+
+Implemented the first coding slice for Milestone 1:
+
+- Added `scanner_results` and `overall_risk` to the Phase 1 output in `scripts/remnux/analyze.py`.
+- Normalized baseline scanner entries for `die`, `yara`, `capa`, and `entropy`.
+- Kept legacy fields (`yara_matches`, `capa_matches`, `packer`, `mitre`, `hashes`, etc.) unchanged for compatibility.
+- Extended verdict calculation in `mau/report_generator.py` to read `scanner_results` when available, while preserving fallback to legacy fields.
+- Added test coverage for `scanner_results` output and verdict scoring from scanner results.
+
+### Why this slice
+
+The goal is to introduce a stable scanner result shape without breaking existing report generation or tests. This provides a migration anchor for future Cyber Ghidra scanner adapter work.
+
+### Verification
+
+- `pytest tests -v` passed locally (9 passed).
+
+### Notes
+
+- Risk scoring is currently heuristic and additive. If both `scanner_results` and legacy lists are present, scoring logic avoids double-counting by preferring scanner-derived counts.
+- Next slice should define a stricter scanner result schema contract in code comments or helper types.

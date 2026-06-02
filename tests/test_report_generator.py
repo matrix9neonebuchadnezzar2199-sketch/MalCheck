@@ -13,6 +13,21 @@ def test_verdict():
     assert v["score"] > 0
 
 
+def test_verdict_with_scanner_results():
+    v = calculate_verdict(
+        {
+            "scanner_results": [
+                {"scanner_name": "yara", "findings": [{"rule": "x"}]},
+                {"scanner_name": "capa", "findings": [{"rule": "y"}]},
+            ]
+        },
+        {},
+        {},
+    )
+    assert v["score"] > 0
+    assert any("yara matches" in reason for reason in v["reasons"])
+
+
 def test_generate_report_json(tmp_path):
     surface = {"hashes": {"md5": "x"}}
     dynamic = {"status": "skipped"}
