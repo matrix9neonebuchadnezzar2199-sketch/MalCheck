@@ -18,9 +18,22 @@ from mau.surface_schema import count_findings, normalize_scanner_results
 
 log = logging.getLogger(__name__)
 
+REPORT_SCHEMA_VERSION = "2.0"
+
 
 def _safe_name(name: str) -> str:
     return re.sub(r"[^\w.\-]+", "_", name)[:200] or "report"
+
+
+def _phase_status(payload: Any) -> str:
+    if not isinstance(payload, dict):
+        return "unknown"
+    status = str(payload.get("status", "")).strip().lower()
+    if status in ("skipped", "not_implemented", "completed", "failed"):
+        return status
+    if payload.get("error") is True:
+        return "failed"
+    return "completed"
 
 
 def aggregate_iocs(surface: dict[str, Any], dynamic: dict[str, Any], static: dict[str, Any]) -> dict[str, Any]:
@@ -134,11 +147,16 @@ def generate_report(
     iocs = aggregate_iocs(surface, dynamic, static)
     verdict = calculate_verdict(surface, dynamic, static)
     report: dict[str, Any] = {
-        "meta": {"timestamp": ts, "sample_name": sample_name},
+        "meta": {"schema_version": REPORT_SCHEMA_VERSION, "timestamp": ts, "sample_name": sample_name},
         "verdict": verdict,
         "phase1_surface": surface,
         "phase2_dynamic": dynamic,
         "phase3_static": static,
+        "phase_status": {
+            "surface": _phase_status(surface),
+            "dynamic": _phase_status(dynamic),
+            "static": _phase_status(static),
+        },
         "iocs": iocs,
         "mitre_mapping": surface.get("mitre") if isinstance(surface, dict) else None,
     }

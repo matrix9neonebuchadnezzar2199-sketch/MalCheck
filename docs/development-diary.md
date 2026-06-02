@@ -156,3 +156,21 @@ The goal is to introduce a stable scanner result shape without breaking existing
 
 - Legacy fields are still supported in verdict scoring (`yara_matches` and `capa_matches`) for backward compatibility.
 - A future slice should introduce typed models for phase outputs and apply normalization in one place before report generation.
+
+## 2026-06-02: Milestone 1 Slice 3 - Report schema version and phase status
+
+### What changed
+
+- Added `REPORT_SCHEMA_VERSION = "2.0"` in `mau/report_generator.py`.
+- Added `meta.schema_version` to generated reports.
+- Added a `phase_status` block with normalized statuses for `surface`, `dynamic`, and `static`.
+- Added `_phase_status()` helper to derive status from explicit phase fields or error payloads.
+- Updated tests to assert schema version and phase status output.
+
+### Why this slice
+
+As integration grows, report consumers need a stable schema signal and explicit phase health. This prevents UI/report code from guessing whether a phase was skipped, not implemented, or failed.
+
+### Verification
+
+- `pytest tests -v` passed locally (11 passed).
