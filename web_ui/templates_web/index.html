@@ -1,42 +1,299 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja" data-color-mode="dark">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>{{ title }}</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
-    h1 { font-size: 1.25rem; }
-    .box { border: 1px solid #ccc; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
-    pre { background: #f6f6f6; padding: 1rem; overflow: auto; font-size: 0.85rem; }
-    button { padding: 0.5rem 1rem; cursor: pointer; }
-    .err { color: #a00; }
+    :root {
+      --canvas: #0d1117;
+      --canvas-inset: #010409;
+      --subtle: #161b22;
+      --border: #30363d;
+      --border-muted: #21262d;
+      --fg: #e6edf3;
+      --fg-muted: #7d8590;
+      --accent: #2f81f7;
+      --btn: #238636;
+      --btn-hover: #2ea043;
+      --btn-border: rgba(240,246,252,0.1);
+      --done: #3fb950;
+      --warn: #d29922;
+      --danger: #f85149;
+      --topic-bg: rgba(56,139,253,0.15);
+      --topic-fg: #58a6ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN",
+        "Yu Gothic", Meiryo, Helvetica, Arial, sans-serif;
+      background: var(--canvas);
+      color: var(--fg);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .topbar {
+      background: var(--subtle);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .topbar svg { fill: var(--fg); }
+    .topbar .brand { font-weight: 600; font-size: 15px; }
+    .topbar .brand-sub { color: var(--fg-muted); font-weight: 400; }
+
+    .wrap { max-width: 920px; margin: 0 auto; padding: 24px 16px 64px; }
+
+    .repo-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .repo-head .owner { color: var(--accent); font-size: 20px; font-weight: 600; }
+    .repo-head .slash { color: var(--fg-muted); font-size: 20px; }
+    .repo-head .name { color: var(--accent); font-size: 20px; font-weight: 600; }
+    .pill-public {
+      border: 1px solid var(--border); color: var(--fg-muted);
+      font-size: 12px; padding: 0 7px; border-radius: 2em; line-height: 18px;
+    }
+    .tagline { color: var(--fg-muted); margin: 8px 0 16px; }
+
+    /* shields.io-style two-tone badges */
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .shield {
+      display: inline-flex; align-items: stretch; border-radius: 4px; overflow: hidden;
+      font-size: 11px; line-height: 20px; height: 20px; box-shadow: 0 0 0 1px var(--border-muted);
+    }
+    .shield .k { background: #444c56; color: #fff; padding: 0 7px; }
+    .shield .v { color: #fff; padding: 0 7px; font-weight: 600; }
+
+    /* GitHub repo "topics" chips */
+    .topics { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+    .topic {
+      background: var(--topic-bg); color: var(--topic-fg);
+      border-radius: 2em; padding: 1px 12px; font-size: 12px; font-weight: 500;
+      transition: background .12s;
+    }
+    .topic:hover { background: rgba(56,139,253,0.28); cursor: default; }
+
+    /* Primer-style Box */
+    .box { border: 1px solid var(--border); border-radius: 6px; background: var(--canvas); overflow: hidden; }
+    .box + .box { margin-top: 16px; }
+    .box-header {
+      background: var(--subtle); border-bottom: 1px solid var(--border);
+      padding: 12px 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;
+    }
+    .box-body { padding: 16px; }
+
+    .file-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .btn {
+      appearance: none; border: 1px solid var(--btn-border); border-radius: 6px;
+      padding: 5px 16px; font-size: 14px; font-weight: 500; cursor: pointer;
+      color: #fff; background: var(--btn);
+    }
+    .btn:hover { background: var(--btn-hover); }
+    .btn:disabled { opacity: .6; cursor: default; }
+    .btn-file {
+      background: #21262d; color: var(--fg); border: 1px solid var(--border);
+    }
+    .btn-file:hover { background: #30363d; }
+    input[type=file] { display: none; }
+    .filename { color: var(--fg-muted); }
+    .hint { color: var(--fg-muted); font-size: 12px; margin-top: 12px; }
+
+    /* GitHub issue-label-style verdict pill */
+    .label {
+      display: inline-flex; align-items: center; gap: 6px;
+      border-radius: 2em; padding: 0 10px; line-height: 22px; font-size: 12px; font-weight: 600;
+      border: 1px solid transparent;
+    }
+    .label .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    .label.benign { color: var(--done); background: rgba(63,185,80,0.15); }
+    .label.suspicious { color: var(--warn); background: rgba(210,153,34,0.15); }
+    .label.malicious { color: var(--danger); background: rgba(248,81,73,0.15); }
+
+    .meta-row { display: flex; gap: 24px; flex-wrap: wrap; margin: 14px 0; }
+    .meta-row .k { color: var(--fg-muted); font-size: 12px; }
+    .meta-row .val { font-weight: 600; }
+    .reasons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+    .reason {
+      background: var(--subtle); border: 1px solid var(--border);
+      border-radius: 2em; padding: 0 10px; line-height: 20px; font-size: 12px; color: var(--fg-muted);
+    }
+
+    details { border: 1px solid var(--border); border-radius: 6px; margin-top: 14px; }
+    summary { cursor: pointer; padding: 8px 12px; color: var(--fg-muted); font-size: 13px; user-select: none; }
+    pre {
+      background: var(--canvas-inset); margin: 0; padding: 16px;
+      overflow: auto; font-size: 12px; line-height: 1.45;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      border-top: 1px solid var(--border);
+    }
+
+    .flash {
+      display: none; border: 1px solid var(--danger); border-radius: 6px;
+      background: rgba(248,81,73,0.1); color: #ffa198; padding: 10px 14px; margin-top: 16px; font-size: 13px;
+    }
+    .links { margin-top: 14px; font-size: 13px; color: var(--fg-muted); }
+    .links code { background: var(--subtle); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; }
   </style>
 </head>
 <body>
-  <h1>{{ title }}</h1>
-  <p>Upload a sample file for analysis (runs surface + optional static Ghidra).</p>
-  <form id="f" class="box" enctype="multipart/form-data">
-    <input type="file" name="file" required />
-    <button type="submit">Analyze</button>
-  </form>
-  <div id="out" class="box" style="display:none;">
-    <pre id="json"></pre>
+  <div class="topbar">
+    <svg height="28" viewBox="0 0 16 16" width="28" aria-hidden="true">
+      <path d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38l-.01-1.49c-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48l-.01 2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0Z"/>
+    </svg>
+    <span class="brand">MalCheck <span class="brand-sub">/ Malware Unified Analyzer</span></span>
   </div>
-  <p id="e" class="err"></p>
+
+  <div class="wrap">
+    <div class="repo-head">
+      <span class="owner">MalCheck</span>
+      <span class="slash">/</span>
+      <span class="name">analyzer</span>
+      <span class="pill-public">Local · Offline</span>
+    </div>
+    <p class="tagline">ローカル・オフライン運用を前提とした、統合マルウェア解析オーケストレーター</p>
+
+    <div class="badges">
+      <span class="shield"><span class="k">python</span><span class="v" style="background:#3776AB">3.11+</span></span>
+      <span class="shield"><span class="k">web</span><span class="v" style="background:#009688">fastapi</span></span>
+      <span class="shield"><span class="k">runtime</span><span class="v" style="background:#2496ED">docker compose</span></span>
+      <span class="shield"><span class="k">static</span><span class="v" style="background:#d18616">ghidra headless</span></span>
+      <span class="shield"><span class="k">output</span><span class="v" style="background:#44cc11">json + html</span></span>
+      <span class="shield"><span class="k">status</span><span class="v" style="background:#3fb950">active</span></span>
+    </div>
+
+    <div class="topics">
+      <span class="topic">malware-analysis</span>
+      <span class="topic">ghidra</span>
+      <span class="topic">yara</span>
+      <span class="topic">capa</span>
+      <span class="topic">triage</span>
+      <span class="topic">offline</span>
+      <span class="topic">usb-deploy</span>
+      <span class="topic">reverse-engineering</span>
+    </div>
+
+    <div class="box">
+      <div class="box-header">
+        <svg height="16" viewBox="0 0 16 16" width="16" aria-hidden="true" fill="currentColor">
+          <path d="M8.878.392a1.75 1.75 0 0 0-1.756 0l-5.25 3.045A1.75 1.75 0 0 0 1 4.951v6.098c0 .624.332 1.2.872 1.514l5.25 3.045a1.75 1.75 0 0 0 1.756 0l5.25-3.045c.54-.313.872-.89.872-1.514V4.951c0-.624-.332-1.2-.872-1.514L8.878.392ZM7.875 1.69a.25.25 0 0 1 .25 0l4.63 2.685L8 7.133 3.245 4.375l4.63-2.685ZM2.5 5.677v5.372c0 .09.047.171.125.216l4.625 2.683V8.432L2.5 5.677Zm6.25 8.271 4.625-2.683a.25.25 0 0 0 .125-.216V5.677L8.75 8.432v5.516Z"/>
+        </svg>
+        サンプルを解析
+      </div>
+      <div class="box-body">
+        <form id="f">
+          <div class="file-row">
+            <label class="btn btn-file" for="file">ファイルを選択</label>
+            <input type="file" id="file" name="file" required />
+            <span class="filename" id="fname">ファイルが選択されていません</span>
+          </div>
+          <div style="margin-top:14px;">
+            <button class="btn" type="submit" id="submit">Analyze</button>
+          </div>
+        </form>
+        <p class="hint">表層解析（surface）＋（設定時）Ghidra 静的解析を実行します。動的解析は既定で無効です。</p>
+      </div>
+    </div>
+
+    <div class="flash" id="flash"></div>
+
+    <div class="box" id="result" style="display:none;">
+      <div class="box-header">
+        <svg height="16" viewBox="0 0 16 16" width="16" aria-hidden="true" fill="currentColor">
+          <path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm9 3a.75.75 0 1 0-1.5 0v2.5a.75.75 0 0 0 1.5 0Zm-.75 5.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z"/>
+        </svg>
+        解析結果
+      </div>
+      <div class="box-body">
+        <div id="verdict-row"></div>
+        <div class="meta-row" id="meta-row"></div>
+        <div id="reasons-wrap" style="display:none;">
+          <div class="meta-row" style="margin-bottom:4px;"><span class="k">reasons</span></div>
+          <div class="reasons" id="reasons"></div>
+        </div>
+        <div class="links" id="links"></div>
+        <details>
+          <summary>raw JSON</summary>
+          <pre id="json"></pre>
+        </details>
+      </div>
+    </div>
+  </div>
+
   <script>
-    document.getElementById("f").onsubmit = async (ev) => {
+    const fileInput = document.getElementById("file");
+    const fname = document.getElementById("fname");
+    fileInput.onchange = () => {
+      fname.textContent = fileInput.files.length ? fileInput.files[0].name : "ファイルが選択されていません";
+    };
+
+    function verdictClass(label) {
+      if (!label) return "benign";
+      if (label.includes("malicious")) return "malicious";
+      if (label.includes("suspicious")) return "suspicious";
+      return "benign";
+    }
+
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+
+    const form = document.getElementById("f");
+    const submit = document.getElementById("submit");
+    const flash = document.getElementById("flash");
+    const result = document.getElementById("result");
+
+    form.onsubmit = async (ev) => {
       ev.preventDefault();
-      const fd = new FormData(ev.target);
-      document.getElementById("e").textContent = "";
+      flash.style.display = "none";
+      submit.disabled = true;
+      submit.textContent = "解析中…";
       try {
+        const fd = new FormData(form);
         const r = await fetch("/analyze", { method: "POST", body: fd });
         const j = await r.json();
         if (!r.ok) throw new Error(j.detail || r.statusText);
-        document.getElementById("out").style.display = "block";
+
+        const verdict = j.verdict || {};
+        const label = verdict.label || "unknown";
+        const cls = verdictClass(label);
+
+        document.getElementById("verdict-row").innerHTML =
+          `<span class="label ${cls}"><span class="dot"></span>${esc(label)}</span>`;
+
+        document.getElementById("meta-row").innerHTML =
+          `<div><div class="k">sample</div><div class="val">${esc(j.sample || "-")}</div></div>` +
+          `<div><div class="k">score</div><div class="val">${esc(verdict.score ?? 0)}</div></div>`;
+
+        const reasons = verdict.reasons || [];
+        const rw = document.getElementById("reasons-wrap");
+        if (reasons.length) {
+          document.getElementById("reasons").innerHTML =
+            reasons.map(x => `<span class="reason">${esc(x)}</span>`).join("");
+          rw.style.display = "block";
+        } else {
+          rw.style.display = "none";
+        }
+
+        const links = [];
+        if (j.report_json) links.push(`<div>report (json): <code>${esc(j.report_json)}</code></div>`);
+        if (j.report_html) links.push(`<div>report (html): <code>${esc(j.report_html)}</code></div>`);
+        document.getElementById("links").innerHTML = links.join("");
+
         document.getElementById("json").textContent = JSON.stringify(j, null, 2);
+        result.style.display = "block";
       } catch (e) {
-        document.getElementById("e").textContent = String(e);
+        flash.textContent = String(e.message || e);
+        flash.style.display = "block";
+      } finally {
+        submit.disabled = false;
+        submit.textContent = "Analyze";
       }
     };
   </script>
