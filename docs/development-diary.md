@@ -132,3 +132,27 @@ The goal is to introduce a stable scanner result shape without breaking existing
 
 - Risk scoring is currently heuristic and additive. If both `scanner_results` and legacy lists are present, scoring logic avoids double-counting by preferring scanner-derived counts.
 - Next slice should define a stricter scanner result schema contract in code comments or helper types.
+
+## 2026-06-02: Milestone 1 Slice 2 - Scanner schema normalization helpers
+
+### What changed
+
+- Added `mau/surface_schema.py` with:
+  - `normalize_scanner_results()`
+  - `count_findings()`
+  - `overall_risk()`
+- Updated `mau/report_generator.py` to use normalized scanner results for verdict scoring.
+- Added `tests/test_surface_schema.py` to lock normalization and counting behavior.
+
+### Why this slice
+
+`scanner_results` is now part of the migration contract, but early adapters may emit inconsistent types. Normalizing once in a shared helper reduces defensive code spread and makes future adapter integration easier.
+
+### Verification
+
+- `pytest tests -v` passed locally (11 passed).
+
+### Notes
+
+- Legacy fields are still supported in verdict scoring (`yara_matches` and `capa_matches`) for backward compatibility.
+- A future slice should introduce typed models for phase outputs and apply normalization in one place before report generation.

@@ -14,6 +14,7 @@ import requests
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from mau.errors import ReportError
+from mau.surface_schema import count_findings, normalize_scanner_results
 
 log = logging.getLogger(__name__)
 
@@ -51,21 +52,9 @@ def calculate_verdict(
     reasons: list[str] = []
     score = 0
     if isinstance(surface, dict):
-        scanner_results = surface.get("scanner_results") or []
-        yara_count = 0
-        capa_count = 0
-        if isinstance(scanner_results, list):
-            for row in scanner_results:
-                if not isinstance(row, dict):
-                    continue
-                sname = str(row.get("scanner_name", ""))
-                findings = row.get("findings") or []
-                if not isinstance(findings, list):
-                    findings = []
-                if sname == "yara":
-                    yara_count += len(findings)
-                elif sname == "capa":
-                    capa_count += len(findings)
+        scanner_results = normalize_scanner_results(surface.get("scanner_results"))
+        yara_count = count_findings(scanner_results, "yara")
+        capa_count = count_findings(scanner_results, "capa")
 
         capa = surface.get("capa_matches") or surface.get("capa") or []
         if capa_count > 0:
