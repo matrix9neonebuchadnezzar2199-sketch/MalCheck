@@ -1,0 +1,573 @@
+容量の見積もりができました。REMnuxが圧縮7.76GB、Ghidraのベースイメージが約200MB＋Ghidra本体500MB程度。USB 64GBあれば余裕です。全体計画をまとめます。
+
+---
+
+## USB ワンボタンデプロイ計画書
+
+### コンセプト
+
+```
+┌──────────────────────────────────────────────────────┐
+│                  開発マシン（ネット有）                 │
+│                                                      │
+│  ① イメージをビルド                                   │
+│  ② docker save で .tar に固める                       │
+│  ③ USB にまとめてコピー                               │
+└──────────────────────┬───────────────────────────────┘
+                       │  USB運搬
+                       ▼
+┌──────────────────────────────────────────────────────┐
+│           解析マシン（エアギャップ／ネット無し）         │
+│                                                      │
+│  ① USB挿す                                           │
+│  ② deploy.sh (or .bat) を1回実行                     │
+│  ③ 全イメージ自動ロード → docker-compose up           │
+│  ④ 検体を投入 → 解析結果が出る                        │
+└──────────────────────────────────────────────────────┘
+```
+
+---
+
+### USB ディレクトリ構成
+
+```
+USB (64GB以上推奨)
+│
+├── deploy.sh                    # Linux用ワンボタンスクリプト
+├── deploy.bat                   # Windows用ワンボタンスクリプト
+├── README.md                    # 使い方ドキュメント
+│
+├── images/                      # ビルド済みDockerイメージ（tar）
+│   ├── remnux-distro.tar        # ~8GB (REMnux フルディストロ)
+│   ├── ghidra-headless.tar      # ~1GB (自前ビルドGhidraコンテナ)
+│   └── orchestrator.tar         # ~200MB (Python制御コンテナ)
+│
+├── compose/                     # 実行時構成ファイル
+│   ├── docker-compose.yml       # メイン定義
+│   ├── .env                     # 環境変数（タイムアウト、OllamaホストIP等）
+│   └── config/
+│       ├── analyzer.yaml        # 解析設定（Phase有効/無効、タイムアウト等）
+│       └── inetsim.conf         # INetSimカスタム設定（任意）
+│
+├── scripts/                     # コンテナ内スクリプト（マウントされる）
+│   ├── remnux/
+│   │   ├── analyze.py           # REMnux内表層解析スクリプト
+│   │   └── network_capture.sh   # ネットワーク傍受起動スクリプト
+│   ├── ghidra/
+│   │   ├── decompile_simple.py  # Ghidraデコンパイル
+│   │   ├── export_functions.py  # 関数一覧エクスポート
+│   │   └── extract_metadata.py  # メタ情報抽出
+│   └── orchestrator/
+│       ├── main.py              # 全体制御
+│       ├── phase_router.py      # Phase振り分け
+│       └── report_generator.py  # 統合レポート生成
+│
+├── rules/                       # 検知ルール
+│   ├── yara/                    # カスタムYARAルール
+│   └── capa/                    # capaルール
+│
+├── samples/                     # ← 検体を置く場所（初期は空）
+│   └── .gitkeep
+│
+├── results/                     # ← 解析結果出力先（初期は空）
+│   ├── surface/
+│   ├── network/
+│   ├── static/
+│   └── reports/
+│
+└── build/                       # 開発マシンでのみ使用（ビルド用資材）
+    ├── ghidra-headless/
+    │   ├── Dockerfile
+    │   ├── ghidra_11.4.3_PUBLIC_20251203.zip
+    │   ├── scripts/             # → USB:/scripts/ghidra/ と同一
+    │   └── entrypoint.sh
+    ├── orchestrator/
+    │   ├── Dockerfile
+    │   └── requirements.txt
+    └── build_and_pack.sh        # イメージビルド＆tar化一括スクリプト
+```
+
+---
+
+### Phase 1: 開発マシンで実行する準備スクリプト
+
+#### build/build_and_pack.sh
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# ============================================================
+#  開発マシン（ネット接続あり）で実行
+#  全Dockerイメージをビルドし、USB用 tar に固める
+# ============================================================
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+IMAGES_DIR="${ROOT_DIR}/images"
+
+mkdir -p "${IMAGES_DIR}"
+
+echo "======================================================"
+echo "  Malware Unified Analyzer - Build & Pack"
+echo "======================================================"
+
+# ----------------------------------------
+#  1. REMnux イメージ取得
+# ----------------------------------------
+echo ""
+echo "[1/4] Pulling REMnux distro image..."
+docker pull remnux/remnux-distro:focal
+
+echo "[*] Saving REMnux image to tar..."
+docker save remnux/remnux-distro:focal | gzip > "${IMAGES_DIR}/remnux-distro.tar.gz"
+echo "[+] Done: $(du -h "${IMAGES_DIR}/remnux-distro.tar.gz" | cut -f1)"
+
+# ----------------------------------------
+#  2. Ghidra Headless イメージビルド
+# ----------------------------------------
+echo ""
+echo "[2/4] Building Ghidra Headless image..."
+
+# ZIPが存在するか確認
+GHIDRA_ZIP="${SCRIPT_DIR}/ghidra-headless/ghidra_11.4.3_PUBLIC_20251203.zip"
+if [ ! -f "${GHIDRA_ZIP}" ]; then
+    echo "[!] ERROR: Ghidra ZIP not found at ${GHIDRA_ZIP}"
+    echo "[!] Please copy ghidra_11.4.3_PUBLIC_20251203.zip to build/ghidra-headless/"
+    exit 1
+fi
+
+docker build -t ghidra-headless:latest "${SCRIPT_DIR}/ghidra-headless/"
+
+echo "[*] Saving Ghidra Headless image to tar..."
+docker save ghidra-headless:latest | gzip > "${IMAGES_DIR}/ghidra-headless.tar.gz"
+echo "[+] Done: $(du -h "${IMAGES_DIR}/ghidra-headless.tar.gz" | cut -f1)"
+
+# ----------------------------------------
+#  3. Orchestrator イメージビルド
+# ----------------------------------------
+echo ""
+echo "[3/4] Building Orchestrator image..."
+docker build -t mal-orchestrator:latest "${SCRIPT_DIR}/orchestrator/"
+
+echo "[*] Saving Orchestrator image to tar..."
+docker save mal-orchestrator:latest | gzip > "${IMAGES_DIR}/orchestrator.tar.gz"
+echo "[+] Done: $(du -h "${IMAGES_DIR}/orchestrator.tar.gz" | cut -f1)"
+
+# ----------------------------------------
+#  4. サイズ集計
+# ----------------------------------------
+echo ""
+echo "[4/4] Summary:"
+echo "------------------------------------------------------"
+du -h "${IMAGES_DIR}"/*.tar.gz
+echo ""
+TOTAL=$(du -ch "${IMAGES_DIR}"/*.tar.gz | tail -1 | cut -f1)
+echo "Total image size: ${TOTAL}"
+echo ""
+
+# USB必要容量の推定（展開後は圧縮の約2倍）
+echo "[*] Recommended USB size: 64GB or larger"
+echo "======================================================"
+echo "[+] All images packed. Copy the entire project to USB."
+echo "======================================================"
+```
+
+---
+
+### Phase 2: 解析マシンで実行するデプロイスクリプト
+
+#### deploy.sh（Linux用）
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# ============================================================
+#  Malware Unified Analyzer - One-Button Deploy
+#  USB から解析環境を一発構築する
+# ============================================================
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+IMAGES_DIR="${SCRIPT_DIR}/images"
+COMPOSE_DIR="${SCRIPT_DIR}/compose"
+
+echo "======================================================"
+echo "  Malware Unified Analyzer - Deploy"
+echo "======================================================"
+echo ""
+
+# ----------------------------------------
+#  前提チェック
+# ----------------------------------------
+echo "[*] Checking prerequisites..."
+
+if ! command -v docker &> /dev/null; then
+    echo "[!] ERROR: Docker is not installed."
+    echo "[!] Please install Docker first:"
+    echo "    https://docs.docker.com/engine/install/"
+    exit 1
+fi
+
+if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+    echo "[!] ERROR: Docker Compose is not installed."
+    exit 1
+fi
+
+# Docker デーモンが起動しているか
+if ! docker info &> /dev/null; then
+    echo "[!] ERROR: Docker daemon is not running."
+    echo "[!] Please start Docker and try again."
+    exit 1
+fi
+
+echo "[+] Docker: $(docker --version)"
+echo ""
+
+# ----------------------------------------
+#  Step 1: Docker イメージをロード
+# ----------------------------------------
+echo "[Step 1/3] Loading Docker images from USB..."
+echo "(This may take several minutes)"
+echo ""
+
+for tar_file in "${IMAGES_DIR}"/*.tar.gz; do
+    if [ -f "$tar_file" ]; then
+        filename=$(basename "$tar_file")
+        echo "  Loading: ${filename}..."
+        docker load -i "$tar_file"
+        echo "  [+] Done"
+        echo ""
+    fi
+done
+
+# gzip無しのtarにも対応
+for tar_file in "${IMAGES_DIR}"/*.tar; do
+    if [ -f "$tar_file" ]; then
+        filename=$(basename "$tar_file")
+        echo "  Loading: ${filename}..."
+        docker load -i "$tar_file"
+        echo "  [+] Done"
+        echo ""
+    fi
+done
+
+echo "[+] All images loaded."
+echo ""
+
+# ----------------------------------------
+#  Step 2: ロード確認
+# ----------------------------------------
+echo "[Step 2/3] Verifying loaded images..."
+echo ""
+
+REQUIRED_IMAGES=("remnux/remnux-distro:focal" "ghidra-headless:latest" "mal-orchestrator:latest")
+ALL_OK=true
+
+for img in "${REQUIRED_IMAGES[@]}"; do
+    if docker image inspect "$img" &> /dev/null; then
+        SIZE=$(docker image inspect "$img" --format='{{.Size}}' | numfmt --to=iec-i 2>/dev/null || echo "unknown")
+        echo "  [+] ${img} (${SIZE})"
+    else
+        echo "  [!] MISSING: ${img}"
+        ALL_OK=false
+    fi
+done
+
+echo ""
+
+if [ "$ALL_OK" = false ]; then
+    echo "[!] WARNING: Some images are missing. The system may not work properly."
+    read -p "Continue anyway? [y/N]: " confirm
+    if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+        exit 1
+    fi
+fi
+
+# ----------------------------------------
+#  Step 3: 作業ディレクトリ準備 & 起動
+# ----------------------------------------
+echo "[Step 3/3] Preparing workspace and starting services..."
+echo ""
+
+# 作業ディレクトリ作成
+mkdir -p "${SCRIPT_DIR}/samples"
+mkdir -p "${SCRIPT_DIR}/results/surface"
+mkdir -p "${SCRIPT_DIR}/results/network"
+mkdir -p "${SCRIPT_DIR}/results/static"
+mkdir -p "${SCRIPT_DIR}/results/reports"
+
+# docker-compose 起動
+cd "${COMPOSE_DIR}"
+
+# .env にパスを動的設定
+cat > "${COMPOSE_DIR}/.env.runtime" <<EOF
+PROJECT_ROOT=${SCRIPT_DIR}
+SAMPLES_DIR=${SCRIPT_DIR}/samples
+RESULTS_DIR=${SCRIPT_DIR}/results
+SCRIPTS_DIR=${SCRIPT_DIR}/scripts
+RULES_DIR=${SCRIPT_DIR}/rules
+CONFIG_DIR=${COMPOSE_DIR}/config
+EOF
+
+echo ""
+echo "======================================================"
+echo "[+] Deploy complete!"
+echo "======================================================"
+echo ""
+echo "Usage:"
+echo "  1. Place malware samples in: ${SCRIPT_DIR}/samples/"
+echo ""
+echo "  2. Start the analysis environment:"
+echo "     cd ${COMPOSE_DIR}"
+echo "     docker compose --env-file .env.runtime up -d"
+echo ""
+echo "  3. Run analysis on a sample:"
+echo "     docker exec orchestrator python3 /scripts/main.py <filename>"
+echo ""
+echo "  4. View results in: ${SCRIPT_DIR}/results/"
+echo ""
+echo "  5. Stop environment:"
+echo "     docker compose --env-file .env.runtime down"
+echo ""
+echo "======================================================"
+```
+
+#### deploy.bat（Windows用）
+
+```batch
+@echo off
+chcp 65001 >nul
+setlocal enabledelayedexpansion
+
+echo ======================================================
+echo   Malware Unified Analyzer - Deploy (Windows)
+echo ======================================================
+echo.
+
+set "SCRIPT_DIR=%~dp0"
+set "IMAGES_DIR=%SCRIPT_DIR%images"
+set "COMPOSE_DIR=%SCRIPT_DIR%compose"
+
+REM --- 前提チェック ---
+where docker >nul 2>&1
+if errorlevel 1 (
+    echo [!] ERROR: Docker is not installed.
+    pause
+    exit /b 1
+)
+
+docker info >nul 2>&1
+if errorlevel 1 (
+    echo [!] ERROR: Docker daemon is not running. Please start Docker Desktop.
+    pause
+    exit /b 1
+)
+
+echo [+] Docker found.
+echo.
+
+REM --- Step 1: イメージロード ---
+echo [Step 1/3] Loading Docker images from USB...
+echo (This may take several minutes)
+echo.
+
+for %%f in ("%IMAGES_DIR%\*.tar.gz") do (
+    echo   Loading: %%~nxf...
+    docker load -i "%%f"
+    echo   [+] Done
+    echo.
+)
+for %%f in ("%IMAGES_DIR%\*.tar") do (
+    echo   Loading: %%~nxf...
+    docker load -i "%%f"
+    echo   [+] Done
+    echo.
+)
+
+echo [+] All images loaded.
+echo.
+
+REM --- Step 2: ディレクトリ準備 ---
+echo [Step 2/3] Preparing directories...
+mkdir "%SCRIPT_DIR%samples" 2>nul
+mkdir "%SCRIPT_DIR%results\surface" 2>nul
+mkdir "%SCRIPT_DIR%results\network" 2>nul
+mkdir "%SCRIPT_DIR%results\static" 2>nul
+mkdir "%SCRIPT_DIR%results\reports" 2>nul
+
+REM --- Step 3: .env.runtime 生成 ---
+echo [Step 3/3] Generating runtime configuration...
+(
+    echo PROJECT_ROOT=%SCRIPT_DIR%
+    echo SAMPLES_DIR=%SCRIPT_DIR%samples
+    echo RESULTS_DIR=%SCRIPT_DIR%results
+    echo SCRIPTS_DIR=%SCRIPT_DIR%scripts
+    echo RULES_DIR=%SCRIPT_DIR%rules
+    echo CONFIG_DIR=%COMPOSE_DIR%\config
+) > "%COMPOSE_DIR%\.env.runtime"
+
+echo.
+echo ======================================================
+echo [+] Deploy complete!
+echo ======================================================
+echo.
+echo Usage:
+echo   1. Place samples in: %SCRIPT_DIR%samples\
+echo   2. Start: cd %COMPOSE_DIR% ^&^& docker compose --env-file .env.runtime up -d
+echo   3. Analyze: docker exec orchestrator python3 /scripts/main.py ^<filename^>
+echo   4. Results: %SCRIPT_DIR%results\
+echo   5. Stop: docker compose --env-file .env.runtime down
+echo.
+
+pause
+```
+
+---
+
+### docker-compose.yml（USB運用対応版）
+
+```yaml
+version: "3.9"
+
+# ============================================================
+#  Malware Unified Analyzer - docker-compose.yml
+#  ※ 全イメージは事前ロード済み（build不要）
+# ============================================================
+
+networks:
+  analysis-net:
+    driver: bridge
+    internal: true                  # 外部Internet完全遮断
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+  mgmt-net:
+    driver: bridge
+
+services:
+  # =========================================
+  #  REMnux: 表層解析 + 疑似ネットワーク
+  # =========================================
+  remnux:
+    image: remnux/remnux-distro:focal   # ← ロード済みイメージを使用（buildしない）
+    container_name: remnux-analyzer
+    networks:
+      analysis-net:
+        ipv4_address: 172.20.0.2
+      mgmt-net: {}
+    volumes:
+      - ${SAMPLES_DIR}:/samples:ro
+      - ${RESULTS_DIR}/surface:/results/surface
+      - ${RESULTS_DIR}/network:/results/network
+      - ${SCRIPTS_DIR}/remnux:/scripts:ro
+      - ${RULES_DIR}:/rules:ro
+      - ${CONFIG_DIR}:/config:ro
+    cap_add:
+      - NET_ADMIN
+    entrypoint: ["/bin/bash"]
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+  # =========================================
+  #  Orchestrator: 全体制御
+  # =========================================
+  orchestrator:
+    image: mal-orchestrator:latest      # ← ロード済み
+    container_name: orchestrator
+    networks:
+      mgmt-net: {}
+    volumes:
+      - ${SAMPLES_DIR}:/samples
+      - ${RESULTS_DIR}:/results
+      - ${SCRIPTS_DIR}/orchestrator:/scripts:ro
+      - ${CONFIG_DIR}:/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - ANALYSIS_TIMEOUT=${ANALYSIS_TIMEOUT:-120}
+      - GHIDRA_IMAGE=ghidra-headless:latest
+      - REMNUX_CONTAINER=remnux-analyzer
+    depends_on:
+      - remnux
+    restart: unless-stopped
+
+  # =========================================
+  #  Ghidra: プロファイルで明示起動のみ
+  #  （Orchestratorが docker run で都度起動・破棄する）
+  # =========================================
+  #  ※ docker-compose.yml には定義しない
+  #  ※ Orchestrator が Docker SDK で直接制御
+```
+
+---
+
+### 容量見積もり・USB要件
+
+| 項目 | 圧縮(.tar.gz) | 展開後 |
+|---|---|---|
+| REMnux distro | ~4.5 GB | ~8 GB |
+| Ghidra Headless | ~500 MB | ~1 GB |
+| Orchestrator | ~100 MB | ~200 MB |
+| スクリプト/ルール/設定 | ~10 MB | ~10 MB |
+| **合計** | **~5.1 GB** | **~9.2 GB** |
+| samples + results余裕 | — | ~残り全部 |
+
+**USB 32GBで足りる。64GBあれば余裕。**
+
+---
+
+### 開発→デプロイの全体ワークフロー
+
+```
+開発マシン（ネット有）                    解析マシン（エアギャップ）
+═══════════════════                   ═══════════════════════
+
+① Ghidra ZIPをbuild/に配置
+   F:\vibe-coder\A02\*.zip
+        ↓
+② bash build/build_and_pack.sh
+   - REMnux pull
+   - Ghidra Headless ビルド
+   - Orchestrator ビルド
+   - 全部 .tar.gz に固める
+        ↓
+③ USBにプロジェクトごとコピー
+   xcopy /E /I . G:\MalAnalyzer\
+        ↓                              ④ USB を挿す
+        =========================>
+                                       ⑤ bash deploy.sh
+                                          (or deploy.bat ダブルクリック)
+                                          - docker load × 3
+                                          - ディレクトリ作成
+                                          - .env.runtime 生成
+                                              ↓
+                                       ⑥ samples/ に検体を置く
+                                              ↓
+                                       ⑦ docker compose up -d
+                                              ↓
+                                       ⑧ docker exec orchestrator \
+                                            python3 /scripts/main.py sample.exe
+                                              ↓
+                                       ⑨ results/ にレポート出力
+                                              ↓
+                                       ⑩ docker compose down（終了）
+```
+
+---
+
+### 開発ロードマップ（改訂版）
+
+| Phase | 内容 | 見積もり |
+|---|---|---|
+| **v0.1** | Ghidra Headless Dockerfile + デコンパイルスクリプト → `docker save`で動作確認 | **1-2日** |
+| **v0.2** | REMnux上の表層解析スクリプト(`analyze.py`) → JSON出力 | **1-2日** |
+| **v0.3** | Orchestrator コンテナ（`main.py`で Phase 1→3 を順次呼び出し） | **2-3日** |
+| **v0.4** | `build_and_pack.sh` + `deploy.sh` + `deploy.bat` 作成・USB動作テスト | **1日** |
+| **v0.5** | 統合レポート生成（JSON→HTML）、AI要約（Ollama連携、任意） | **2-3日** |
+| **v0.6** | Phase 2 動的解析（REMnux INetSim + 解析VM連携）※最大の山場 | **3-5日** |
+| **v1.0** | Web UI、ドキュメント整備、エッジケース対応 | **3-5日** |
+
+v0.4まで到達すれば「USB運んでワンボタン構築 → 検体投入 → 表層+静的デコンパイル結果」が動く状態になります。動的解析（v0.6）は環境依存が大きいので後回しにするのが現実的です。
+
+どこから着手しますか？v0.1のGhidra Dockerfileはもう前回作ったので、次はv0.2のREMnux解析スクリプト、v0.3のOrchestrator、v0.4のパッケージング、好きなところから進められます。

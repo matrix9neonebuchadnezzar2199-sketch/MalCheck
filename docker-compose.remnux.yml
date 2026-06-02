@@ -1,0 +1,57 @@
+# Standalone REMnux + orchestrator (use instead of default docker-compose.yml on USB).
+# Usage: docker compose -f docker-compose.remnux.yml up -d
+
+services:
+  remnux:
+    image: remnux/remnux-distro:focal
+    container_name: remnux-analyzer
+    networks:
+      analysis-net:
+        ipv4_address: 172.20.0.2
+      mgmt-net: {}
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ${SAMPLES_DIR:-./samples}:/samples:ro
+      - ${RESULTS_DIR:-./results}/surface:/results/surface
+      - ${RESULTS_DIR:-./results}/network:/results/network
+      - ${SCRIPTS_DIR:-./scripts}/remnux:/scripts:ro
+      - ${RULES_DIR:-./rules}:/rules:ro
+      - ${CONFIG_DIR:-./compose/config}:/config:ro
+    entrypoint: ["/bin/bash", "-lc", "sleep infinity"]
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: build/orchestrator/Dockerfile
+    image: mal-orchestrator:latest
+    container_name: orchestrator
+    networks:
+      - mgmt-net
+    volumes:
+      - ${SAMPLES_DIR:-./samples}:/samples
+      - ${RESULTS_DIR:-./results}:/results
+      - ${CONFIG_DIR:-./compose/config}:/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - MAU_CONFIG=/config/analyzer.yaml
+      - SAMPLES_DIR=/samples
+      - RESULTS_DIR=/results
+      - SURFACE_CONTAINER=remnux-analyzer
+      - REMNUX_CONTAINER=remnux-analyzer
+    depends_on:
+      - remnux
+    restart: unless-stopped
+
+networks:
+  analysis-net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+  mgmt-net:
+    driver: bridge

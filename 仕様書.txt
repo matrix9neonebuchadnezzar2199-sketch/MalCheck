@@ -1,0 +1,290 @@
+全体像が見えました。ここからは、実際にツール化する場合の設計案を一緒に考えていきましょう。
+
+---
+
+## 「統合マルウェア解析オーケストレーター」の設計案
+
+### 全体アーキテクチャ
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    Orchestrator (Python)                      │
+│                  ─ メインコントローラー ─                       │
+│                                                              │
+│  ┌─ CLI / Web UI ─┐                                         │
+│  │ 検体投入口       │    ┌─────────────────────────────────┐  │
+│  │ (ファイル/URL)   │───▶│  Phase Router (解析フェーズ制御) │  │
+│  └────────────────┘    └──────┬──────┬──────┬──────────┘  │
+│                               │      │      │              │
+│                    ┌──────────┘      │      └──────────┐   │
+│                    ▼                 ▼                  ▼   │
+│            ┌──────────────┐ ┌──────────────┐ ┌────────────┐│
+│            │ Phase 1      │ │ Phase 2      │ │ Phase 3    ││
+│            │ 表層解析     │ │ 動的解析     │ │ 静的解析   ││
+│            │ (Container)  │ │ (VM/Container│ │ (Container)││
+│            └──────┬───────┘ └──────┬───────┘ └──────┬─────┘│
+│                   ▼                ▼                 ▼      │
+│            ┌────────────────────────────────────────────┐   │
+│            │        Result Aggregator & Reporter         │   │
+│            │    (JSON統合 → HTML/PDFレポート生成)         │   │
+│            └────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 各フェーズの詳細設計
+
+---
+
+#### **Phase 1: 表層解析コンテナ**
+
+```yaml
+# docker-compose.yml (抜粋)
+surface-analysis:
+  build: ./containers/surface
+  volumes:
+    - ./samples:/samples:ro
+    - ./results:/results
+  environment:
+    - VIRUSTOTAL_API_KEY=${VT_API_KEY}
+```
+
+処理内容はおおよそ以下のようになります：
+
+```python
+# surface_analyzer.py (概念コード)
+def run_surface_analysis(sample_path: str) -> dict:
+    result = {}
+
+    # 1. ファイル識別・ハッシュ
+    result["hashes"] = {
+        "md5":    calc_md5(sample_path),
+        "sha256": calc_sha256(sample_path),
+        "ssdeep": calc_ssdeep(sample_path),
+        "imphash": calc_imphash(sample_path),
+    }
+    result["file_type"] = magic.from_file(sample_path)
+
+    # 2. 文字列抽出・分類
+    result["strings"] = extract_strings(sample_path)      # strings + FLOSS
+    result["urls"]    = extract_urls(result["strings"])
+    result["ips"]     = extract_ips(result["strings"])
+
+    # 3. 難読化・パッカー判定
+    result["packer"]       = detect_packer(sample_path)    # DIE (Detect It Easy)
+    result["entropy"]      = calc_section_entropy(sample_path)
+    result["obfuscation"]  = score_obfuscation(result["entropy"])
+
+    # 4. YARA / capa スキャン
+    result["yara_matches"] = scan_yara(sample_path, RULE_DIR)
+    result["capa_matches"] = scan_capa(sample_path)
+
+    # 5. MITRE ATT&CK マッピング
+    result["mitre"] = map_to_mitre(result["capa_matches"])
+
+    return result
+```
+
+内部で使うツール群：`Qu1cksc0pe`, `FLOSS`, `Detect It Easy`, `YARA`, `capa`, `pefile`, `ssdeep`
+
+---
+
+#### **Phase 2: 動的解析（隔離ネットワーク環境）**
+
+```
+┌───────────────────────── 隔離ネットワーク (host-only) ──────┐
+│                                                              │
+│  ┌──────────────┐    ┌──────────────┐    ┌───────────────┐  │
+│  │ INetSim /    │    │ 解析対象VM   │    │ tcpdump /     │  │
+│  │ FakeNet-NG   │◄──▶│ (Windows)    │◄──▶│ Wireshark     │  │
+│  │ (偽Internet) │    │ 検体を実行    │    │ (通信傍受)     │  │
+│  └──────────────┘    └──────┬───────┘    └───────────────┘  │
+│                             │                                │
+│              ┌──────────────┴──────────────┐                │
+│              │  監視エージェント             │                │
+│              │  - Process Monitor / API Hook│                │
+│              │  - Regshot (レジストリ差分)   │                │
+│              │  - Noriben / Procmon CSV     │                │
+│              └─────────────────────────────┘                │
+└──────────────────────────────────────────────────────────────┘
+```
+
+```python
+# dynamic_analyzer.py (概念コード)
+def run_dynamic_analysis(sample_path: str, timeout: int = 120) -> dict:
+    result = {}
+
+    # 1. 隔離ネットワーク構築
+    fake_net = start_inetsim()           # or FakeNet-NG
+    pcap_capture = start_tcpdump()
+
+    # 2. VMスナップショットから起動 → 検体投入 → 実行
+    vm = restore_snapshot("clean_windows")
+    vm.upload_and_execute(sample_path)
+    time.sleep(timeout)
+
+    # 3. 結果収集
+    result["network"] = {
+        "pcap":          pcap_capture.stop_and_save(),
+        "dns_queries":   parse_dns_from_pcap(),
+        "http_requests": parse_http_from_pcap(),
+        "c2_candidates": extract_c2_indicators(),
+    }
+    result["processes"]  = vm.collect_procmon_logs()
+    result["registry"]   = vm.collect_regshot_diff()
+    result["filesystem"] = vm.collect_file_changes()
+    result["screenshots"]= vm.collect_screenshots()
+
+    # 4. VM破棄（スナップショットに復元）
+    vm.revert_to_snapshot("clean_windows")
+    fake_net.stop()
+
+    return result
+```
+
+内部で使うツール群：`CAPEv2` API または 自前VM制御 + `INetSim`/`FakeNet-NG` + `tcpdump` + `Procmon`
+
+---
+
+#### **Phase 3: 静的解析（使い捨てDockerコンテナ + Ghidra）**
+
+```python
+# static_analyzer.py (概念コード)
+def run_static_analysis(sample_path: str) -> dict:
+    result = {}
+    container_name = f"ghidra-analysis-{uuid.uuid4().hex[:8]}"
+
+    try:
+        # 1. 使い捨てDockerコンテナ起動（Ghidra headless入り）
+        container = docker.run(
+            image="ghidra-headless:latest",
+            name=container_name,
+            volumes={sample_path: "/sample/target.bin"},
+            network="none",           # ← 完全ネットワーク隔離
+            mem_limit="4g",
+            auto_remove=False,
+        )
+
+        # 2. Ghidra headless でデコンパイル実行
+        container.exec(
+            "analyzeHeadless /tmp/project analysis "
+            "-import /sample/target.bin "
+            "-postScript ExportDecompiled.java /output/"
+        )
+
+        # 3. デコンパイル結果取得
+        decompiled_code = container.get_file("/output/decompiled.c")
+        result["decompiled"]  = decompiled_code
+        result["functions"]   = parse_function_list(decompiled_code)
+        result["imports"]     = extract_imports(container)
+        result["call_graph"]  = extract_call_graph(container)
+
+        # 4. (任意) LLMに解析を依頼
+        result["ai_analysis"] = llm_analyze(
+            decompiled_code,
+            prompt="このデコンパイル結果からマルウェアの機能を分析してください"
+        )
+
+    finally:
+        # 5. コンテナ強制破棄（痕跡を残さない）
+        docker.remove(container_name, force=True)
+
+    return result
+```
+
+内部で使うツール群：`Ghidra headless` (Docker), `ghidra-headless-mcp` or 自作PostScript, LLM (Ollama / Claude API)
+
+---
+
+#### **Result Aggregator：統合レポーター**
+
+```python
+# report_generator.py (概念コード)
+def generate_report(surface: dict, dynamic: dict, static: dict) -> None:
+    report = {
+        "meta": {
+            "timestamp":   datetime.now().isoformat(),
+            "sample_name": surface["hashes"]["sha256"],
+        },
+        "verdict": calculate_verdict(surface, dynamic, static),
+        "phase1_surface": surface,
+        "phase2_dynamic": dynamic,
+        "phase3_static":  static,
+        "iocs": aggregate_iocs(surface, dynamic, static),
+        "mitre_mapping": merge_mitre(surface, dynamic),
+    }
+
+    # JSON (機械可読)
+    save_json(report, f"results/{report['meta']['sample_name']}.json")
+
+    # HTML (人間可読レポート)
+    render_html(report, f"results/{report['meta']['sample_name']}.html")
+
+    # (任意) AI総合判定
+    report["executive_summary"] = llm_summarize(report)
+```
+
+---
+
+### プロジェクト構成案
+
+```
+malware-unified-analyzer/
+├── docker-compose.yml          # 全コンテナ定義
+├── orchestrator/
+│   ├── main.py                 # エントリーポイント（CLI/API）
+│   ├── phase_router.py         # フェーズ制御・並列実行管理
+│   ├── config.yaml             # ツールパス・タイムアウト等の設定
+│   └── report_generator.py     # 統合レポート生成
+├── containers/
+│   ├── surface/
+│   │   ├── Dockerfile          # Qu1cksc0pe + YARA + capa + FLOSS
+│   │   └── surface_analyzer.py
+│   ├── dynamic/
+│   │   ├── Dockerfile          # INetSim + tcpdump
+│   │   ├── dynamic_analyzer.py
+│   │   └── vm_controller.py    # QEMU/VBox API制御
+│   └── static/
+│       ├── Dockerfile          # Ghidra headless + PostScript
+│       ├── static_analyzer.py
+│       └── ghidra_scripts/
+│           ├── ExportDecompiled.java
+│           └── ExtractImports.java
+├── web_ui/                     # (任意) Flask/FastAPI Web UI
+│   ├── app.py
+│   └── templates/
+├── rules/
+│   ├── yara/                   # YARAルール
+│   └── capa/                   # capaルール
+└── README.md
+```
+
+---
+
+### 技術選定のポイント
+
+| レイヤー | 推奨技術 | 理由 |
+|---|---|---|
+| オーケストレーション | **Python + asyncio** (小規模) / **Prefect** (大規模) | マルウェア解析ツールのほとんどがPython製で親和性が高い |
+| コンテナ管理 | **Docker SDK for Python** (`docker` パッケージ) | コンテナの起動・破棄をコードで完全制御できる |
+| VM管理 (動的解析) | **libvirt** (QEMU/KVM) or **CAPEv2 REST API** | CAPEv2のAPIを叩くのが最も楽。自前なら`libvirt` |
+| 疑似ネットワーク | **INetSim** (Linux) / **FakeNet-NG** (Windows) | C2通信を傍受して通信先情報を安全に取得 |
+| LLM連携 | **Ollama** (ローカル) / **Claude API** (クラウド) | 検体情報を外に出したくなければOllamaで完結 |
+| レポート | **Jinja2** → HTML / **WeasyPrint** → PDF | テンプレートでレポートを自在に整形 |
+
+---
+
+### 開発ロードマップ案
+
+**v0.1（MVP）**として最小構成で動くものを先に作り、段階的に拡張するのが現実的です：
+
+**v0.1**: Phase 1（表層）だけ自動化。検体投入 → ハッシュ/文字列/YARA/capa → JSONレポート出力。ここだけならDockerコンテナ1つで1〜2日で作れる。
+
+**v0.2**: Phase 3（静的/Ghidra）追加。使い捨てGhidraコンテナでデコンパイル結果を取得してレポートに追加。
+
+**v0.3**: Phase 2（動的）追加。CAPEv2のREST APIを呼ぶか、自前でVM+INetSim環境を構築。ここが最も工数がかかる。
+
+**v1.0**: Web UI + AI総合判定 + レポートの自動生成まで統合。
+
+---
+
+ここまでの設計案、方向性としてどうですか？例えば「まずv0.1のMVPを実際にコード化してみたい」とか、「動的解析のVM制御部分をもっと深掘りしたい」とか、「docker-compose.ymlの全体を書いてほしい」とか、次にフォーカスしたいところがあれば教えてください。

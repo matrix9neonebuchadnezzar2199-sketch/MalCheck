@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Malware Analysis — {{ report.meta.sample_name | e }}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 960px; color: #1a1a1a; }
+    h1 { font-size: 1.35rem; border-bottom: 1px solid #ccc; padding-bottom: .5rem; }
+    h2 { font-size: 1.1rem; margin-top: 1.5rem; }
+    .meta { color: #555; font-size: .9rem; }
+    .verdict { padding: .75rem 1rem; background: #f4f4f4; border-radius: 6px; margin: 1rem 0; }
+    pre { background: #f8f8f8; padding: 1rem; overflow: auto; max-height: 400px; font-size: .8rem; }
+    table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+    th, td { border: 1px solid #ddd; padding: .4rem .6rem; text-align: left; }
+    th { background: #eee; }
+  </style>
+</head>
+<body>
+  <h1>Malware Unified Analyzer Report</h1>
+  <p class="meta">Sample: <strong>{{ report.meta.sample_name | e }}</strong><br/>
+     Timestamp: {{ report.meta.timestamp | e }}</p>
+
+  <div class="verdict">
+    <strong>Verdict</strong>: {{ report.verdict.label | e }}
+    (score {{ report.verdict.score }})
+    {% if report.verdict.reasons %}
+    <ul>{% for r in report.verdict.reasons %}<li>{{ r | e }}</li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+
+  {% if report.executive_summary %}
+  <h2>Executive summary</h2>
+  <pre>{{ report.executive_summary | e }}</pre>
+  {% endif %}
+
+  <h2>IOCs</h2>
+  <table>
+    <tr><th>Type</th><th>Values</th></tr>
+    <tr><td>Hashes</td><td><pre>{{ report.iocs.hashes | tojson }}</pre></td></tr>
+    <tr><td>URLs</td><td>{{ (report.iocs.urls or []) | join(', ') | e }}</td></tr>
+    <tr><td>IPs</td><td>{{ (report.iocs.ips or []) | join(', ') | e }}</td></tr>
+  </table>
+
+  <h2>Surface (Phase 1)</h2>
+  <pre>{{ report.phase1_surface | tojson }}</pre>
+
+  <h2>Dynamic (Phase 2)</h2>
+  <pre>{{ report.phase2_dynamic | tojson }}</pre>
+
+  <h2>Static / Ghidra (Phase 3)</h2>
+  <pre>{{ report.phase3_static | tojson }}</pre>
+
+  <h2>Full JSON</h2>
+  <pre>{{ json_pretty | e }}</pre>
+</body>
+</html>

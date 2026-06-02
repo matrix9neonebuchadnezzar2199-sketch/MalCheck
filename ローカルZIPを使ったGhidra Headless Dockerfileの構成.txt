@@ -1,0 +1,397 @@
+必要な情報が揃いました。Ghidra 11.4.3は**JDK 21が必須**です。ローカルのZIPを使う形でDockerfileを作ります。
+
+---
+
+## ローカルZIPを使ったGhidra Headless Dockerfileの構成
+
+全く問題なく使えます。むしろダウンロード済みの方が、ビルドが速いし再現性も高いです。
+
+### プロジェクト構成
+
+```
+containers/ghidra-headless/
+├── Dockerfile
+├── ghidra_11.4.3_PUBLIC_20251203.zip   ← F:\vibe-coder\A02\ からコピー
+├── scripts/
+│   ├── decompile_simple.py             ← Ghidra PostScript（デコンパイル）
+│   ├── export_functions.py             ← 関数一覧エクスポート
+│   └── extract_metadata.py            ← インポート/文字列等のメタ情報
+└── entrypoint.sh                       ← コンテナ起動時のラッパースクリプト
+```
+
+まず `F:\vibe-coder\A02\ghidra_11.4.3_PUBLIC_20251203.zip` を `containers/ghidra-headless/` にコピーしてください。Dockerの `COPY` 命令はビルドコンテキスト内のファイルしか参照できないので、**Dockerfileと同じディレクトリに置く**必要があります。
+
+---
+
+### Dockerfile
+
+```dockerfile
+# ============================================================
+#  Ghidra Headless Analyzer - 使い捨てマルウェア静的解析コンテナ
+# ============================================================
+FROM eclipse-temurin:21-jdk-jammy
+
+LABEL maintainer="malware-unified-analyzer"
+LABEL description="Disposable Ghidra headless container for automated decompilation"
+
+# ----------------------------------------
+#  OS基盤パッケージ
+# ----------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        unzip \
+        python3 \
+        python3-pip \
+        file \
+        jq \
+    && rm -rf /var/lib/apt/lists/*
+
+# ----------------------------------------
+#  Ghidra インストール（ローカルZIPを使用）
+# ----------------------------------------
+#  ※ ビルドコンテキストに置いたZIPをそのまま使う
+#    （毎回GitHubから落とさなくて済む）
+COPY ghidra_11.4.3_PUBLIC_20251203.zip /tmp/ghidra.zip
+
+RUN unzip /tmp/ghidra.zip -d /opt/ \
+    && mv /opt/ghidra_11.4.3_PUBLIC /opt/ghidra \
+    && rm /tmp/ghidra.zip \
+    && chmod +x /opt/ghidra/support/analyzeHeadless
+
+# Ghidra を PATH に追加
+ENV GHIDRA_HOME=/opt/ghidra
+ENV PATH="${GHIDRA_HOME}/support:${PATH}"
+
+# ----------------------------------------
+#  解析スクリプト配置
+# ----------------------------------------
+COPY scripts/ /ghidra-scripts/
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# ----------------------------------------
+#  作業ディレクトリ
+# ----------------------------------------
+RUN mkdir -p /samples /output /tmp/ghidra-project
+WORKDIR /output
+
+# ----------------------------------------
+#  非rootユーザーで実行（安全性向上）
+# ----------------------------------------
+RUN useradd -m -s /bin/bash analyzer
+RUN chown -R analyzer:analyzer /samples /output /tmp/ghidra-project /ghidra-scripts
+USER analyzer
+
+# ----------------------------------------
+#  エントリーポイント
+# ----------------------------------------
+ENTRYPOINT ["/entrypoint.sh"]
+```
+
+---
+
+### entrypoint.sh（コンテナ起動スクリプト）
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# ============================================================
+#  Ghidra Headless 自動解析エントリーポイント
+#
+#  使い方:
+#    docker run --rm --network none \
+#      -v /path/to/sample.exe:/samples/target.bin:ro \
+#      -v /path/to/output:/output \
+#      ghidra-headless:latest [target.bin] [timeout_sec]
+# ============================================================
+
+SAMPLE_NAME="${1:-target.bin}"
+TIMEOUT="${2:-600}"
+SAMPLE_PATH="/samples/${SAMPLE_NAME}"
+PROJECT_DIR="/tmp/ghidra-project"
+PROJECT_NAME="AutoAnalysis"
+OUTPUT_DIR="/output"
+
+echo "===================================================="
+echo "  Ghidra Headless Analyzer - Automated Decompilation"
+echo "===================================================="
+echo "[*] Sample     : ${SAMPLE_PATH}"
+echo "[*] Timeout    : ${TIMEOUT}s"
+echo "[*] Output Dir : ${OUTPUT_DIR}"
+echo ""
+
+# ファイル存在チェック
+if [ ! -f "${SAMPLE_PATH}" ]; then
+    echo "[!] ERROR: Sample not found at ${SAMPLE_PATH}"
+    exit 1
+fi
+
+# ファイルタイプ表示
+echo "[*] File type: $(file -b "${SAMPLE_PATH}")"
+echo ""
+
+# ----------------------------------------
+#  Step 1: デコンパイル（疑似Cコード出力）
+# ----------------------------------------
+echo "[*] Phase 1/3: Decompiling..."
+timeout "${TIMEOUT}" analyzeHeadless \
+    "${PROJECT_DIR}" "${PROJECT_NAME}" \
+    -import "${SAMPLE_PATH}" \
+    -scriptPath /ghidra-scripts \
+    -postScript decompile_simple.py "${OUTPUT_DIR}/decompiled.c" \
+    -deleteProject \
+    2>&1 | tee "${OUTPUT_DIR}/ghidra_decompile.log" || true
+
+echo ""
+
+# ----------------------------------------
+#  Step 2: 関数一覧エクスポート
+# ----------------------------------------
+echo "[*] Phase 2/3: Extracting function list..."
+timeout "${TIMEOUT}" analyzeHeadless \
+    "${PROJECT_DIR}" "${PROJECT_NAME}" \
+    -import "${SAMPLE_PATH}" \
+    -scriptPath /ghidra-scripts \
+    -postScript export_functions.py "${OUTPUT_DIR}/functions.json" \
+    -deleteProject \
+    2>&1 | tee "${OUTPUT_DIR}/ghidra_functions.log" || true
+
+echo ""
+
+# ----------------------------------------
+#  Step 3: メタデータ抽出（インポート, 文字列等）
+# ----------------------------------------
+echo "[*] Phase 3/3: Extracting metadata..."
+timeout "${TIMEOUT}" analyzeHeadless \
+    "${PROJECT_DIR}" "${PROJECT_NAME}" \
+    -import "${SAMPLE_PATH}" \
+    -scriptPath /ghidra-scripts \
+    -postScript extract_metadata.py "${OUTPUT_DIR}/metadata.json" \
+    -deleteProject \
+    2>&1 | tee "${OUTPUT_DIR}/ghidra_metadata.log" || true
+
+echo ""
+echo "===================================================="
+echo "[*] Analysis complete. Output files:"
+ls -la "${OUTPUT_DIR}/"
+echo "===================================================="
+```
+
+---
+
+### scripts/decompile_simple.py（Ghidraデコンパイルスクリプト）
+
+```python
+# Ghidra Headless PostScript: 全関数をデコンパイルしてCコードとして出力
+# Usage: -postScript decompile_simple.py <output_filepath>
+# Based on: galoget/ghidra-headless-scripts
+
+from ghidra.app.decompiler import DecompInterface
+from ghidra.util.task import ConsoleTaskMonitor
+import json
+
+args = getScriptArgs()
+output_path = args[0] if len(args) > 0 else "/output/decompiled.c"
+
+# デコンパイラ初期化
+decomp = DecompInterface()
+decomp.openProgram(currentProgram)
+monitor = ConsoleTaskMonitor()
+
+function_manager = currentProgram.getFunctionManager()
+functions = function_manager.getFunctions(True)
+
+output_lines = []
+function_summary = []
+
+output_lines.append("// ==============================================")
+output_lines.append("// Ghidra Headless Decompiler Output")
+output_lines.append("// Program: {}".format(currentProgram.getName()))
+output_lines.append("// ==============================================")
+output_lines.append("")
+
+count = 0
+for func in functions:
+    try:
+        result = decomp.decompileFunction(func, 60, monitor)
+        if result and result.depiledFunction():
+            code = result.getDecompiledFunction().getC()
+            output_lines.append("// ---- Function: {} @ {} ----".format(
+                func.getName(), func.getEntryPoint()))
+            output_lines.append(code)
+            output_lines.append("")
+
+            function_summary.append({
+                "name": func.getName(),
+                "address": str(func.getEntryPoint()),
+                "size": func.getBody().getNumAddresses(),
+                "has_decompile": True
+            })
+            count += 1
+        else:
+            function_summary.append({
+                "name": func.getName(),
+                "address": str(func.getEntryPoint()),
+                "size": func.getBody().getNumAddresses(),
+                "has_decompile": False
+            })
+    except Exception as e:
+        print("[-] Failed to decompile {}: {}".format(func.getName(), str(e)))
+
+# Cコード出力
+with open(output_path, "w") as f:
+    f.write("\n".join(output_lines))
+
+# サマリーJSON出力
+summary_path = output_path.replace(".c", "_summary.json")
+with open(summary_path, "w") as f:
+    json.dump({
+        "program": currentProgram.getName(),
+        "total_functions": count,
+        "functions": function_summary
+    }, f, indent=2)
+
+print("[+] Decompiled {} functions -> {}".format(count, output_path))
+print("[+] Summary -> {}".format(summary_path))
+```
+
+---
+
+### scripts/export_functions.py（関数一覧エクスポート）
+
+```python
+# Ghidra Headless PostScript: 関数一覧をJSON形式でエクスポート
+import json
+
+args = getScriptArgs()
+output_path = args[0] if len(args) > 0 else "/output/functions.json"
+
+fm = currentProgram.getFunctionManager()
+functions = []
+
+for func in fm.getFunctions(True):
+    functions.append({
+        "name":       func.getName(),
+        "address":    str(func.getEntryPoint()),
+        "size":       func.getBody().getNumAddresses(),
+        "is_thunk":   func.isThunk(),
+        "is_external": func.isExternal(),
+        "calling_convention": func.getCallingConventionName(),
+        "param_count": func.getParameterCount(),
+    })
+
+with open(output_path, "w") as f:
+    json.dump({"program": currentProgram.getName(),
+               "function_count": len(functions),
+               "functions": functions}, f, indent=2)
+
+print("[+] Exported {} functions -> {}".format(len(functions), output_path))
+```
+
+---
+
+### scripts/extract_metadata.py（メタデータ抽出）
+
+```python
+# Ghidra Headless PostScript: インポート/エクスポート/セクション等のメタ情報抽出
+import json
+
+args = getScriptArgs()
+output_path = args[0] if len(args) > 0 else "/output/metadata.json"
+
+metadata = {
+    "program":        currentProgram.getName(),
+    "language":       str(currentProgram.getLanguage().getLanguageID()),
+    "compiler":       str(currentProgram.getCompilerSpec().getCompilerSpecID()),
+    "image_base":     str(currentProgram.getImageBase()),
+    "executable_format": currentProgram.getExecutableFormat(),
+    "imports":        [],
+    "exports":        [],
+    "memory_blocks":  [],
+    "strings_sample": [],
+}
+
+# インポート（外部参照関数）
+sym_table = currentProgram.getSymbolTable()
+for sym in sym_table.getExternalSymbols():
+    metadata["imports"].append({
+        "name":    sym.getName(),
+        "address": str(sym.getAddress()),
+        "library": str(sym.getParentNamespace()),
+    })
+
+# エクスポート
+for sym in sym_table.getDefinedSymbols():
+    if sym.isExternalEntryPoint():
+        metadata["exports"].append({
+            "name":    sym.getName(),
+            "address": str(sym.getAddress()),
+        })
+
+# メモリブロック（セクション情報）
+for block in currentProgram.getMemory().getBlocks():
+    metadata["memory_blocks"].append({
+        "name":       block.getName(),
+        "start":      str(block.getStart()),
+        "size":       block.getSize(),
+        "permissions": "{}{}{}".format(
+            "r" if block.isRead() else "-",
+            "w" if block.isWrite() else "-",
+            "x" if block.isExecute() else "-",
+        ),
+    })
+
+# 文字列サンプル（先頭200件）
+from ghidra.program.util import DefinedDataIterator
+count = 0
+for data in DefinedDataIterator.definedStrings(currentProgram):
+    if count >= 200:
+        break
+    metadata["strings_sample"].append({
+        "address": str(data.getAddress()),
+        "value":   data.getValue(),
+    })
+    count += 1
+
+with open(output_path, "w") as f:
+    json.dump(metadata, f, indent=2, ensure_ascii=False, default=str)
+
+print("[+] Metadata exported -> {}".format(output_path))
+```
+
+---
+
+### ビルドと実行
+
+```powershell
+# 1. ZIPをコピー（Windowsの場合）
+copy "F:\vibe-coder\A02\ghidra_11.4.3_PUBLIC_20251203.zip" ".\containers\ghidra-headless\"
+
+# 2. イメージビルド
+docker build -t ghidra-headless:latest ./containers/ghidra-headless/
+
+# 3. 実行（検体を投入して自動解析 → 結果取得 → コンテナ自動破棄）
+docker run --rm --network none `
+    -v "C:\path\to\sample.exe:/samples/target.bin:ro" `
+    -v "C:\path\to\output:/output" `
+    ghidra-headless:latest target.bin 600
+```
+
+実行後、`/output` には以下が出力されます：
+
+```
+output/
+├── decompiled.c               # 全関数のデコンパイル結果（疑似Cコード）
+├── decompiled_summary.json    # 関数ごとのデコンパイル成否サマリー
+├── functions.json             # 関数一覧（アドレス、サイズ、thunk判定等）
+├── metadata.json              # インポート/エクスポート/セクション/文字列
+├── ghidra_decompile.log       # Ghidraのログ（デバッグ用）
+├── ghidra_functions.log
+└── ghidra_metadata.log
+```
+
+ポイントは `--rm`（終了後コンテナ自動削除）と `--network none`（完全ネットワーク隔離）で、「使い捨てで隔離された空間でデコンパイルし、終わったら破棄」という要件をそのまま満たしています。
+
+---
+
+Orchestratorから呼ぶ場合は、前回の `static_analyzer.py` でDocker SDKからこのコンテナを起動・待機・結果取得・破棄するだけなので、きれいにつながります。次は「REMnux側のスクリプトを書く」か、「Orchestratorのmain.pyを仕上げる」か、どちらに進めましょうか？

@@ -1,0 +1,72 @@
+# Malware Unified Analyzer — default stack: slim surface + orchestrator (no REMnux pull).
+# For full REMnux: docker compose -f docker-compose.yml -f docker-compose.remnux.yml up -d
+
+services:
+  surface:
+    build:
+      context: .
+      dockerfile: containers/surface/Dockerfile
+    image: mal-surface:latest
+    container_name: surface-analyzer
+    networks:
+      - mgmt-net
+    volumes:
+      - ${SAMPLES_DIR:-./samples}:/samples:ro
+      - ${RESULTS_DIR:-./results}/surface:/results/surface
+      - ${RULES_DIR:-./rules}:/rules:ro
+    environment:
+      - RULES_DIR=/rules
+    restart: unless-stopped
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: build/orchestrator/Dockerfile
+    image: mal-orchestrator:latest
+    container_name: orchestrator
+    networks:
+      - mgmt-net
+    volumes:
+      - ${SAMPLES_DIR:-./samples}:/samples
+      - ${RESULTS_DIR:-./results}:/results
+      - ${CONFIG_DIR:-./compose/config}:/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - MAU_CONFIG=/config/analyzer.yaml
+      - SAMPLES_DIR=/samples
+      - RESULTS_DIR=/results
+      - SURFACE_CONTAINER=surface-analyzer
+      - REMNUX_CONTAINER=surface-analyzer
+      - MAU_LOG_LEVEL=INFO
+    depends_on:
+      - surface
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: web_ui/Dockerfile
+    image: mal-web:latest
+    container_name: mau-web
+    networks:
+      - mgmt-net
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ${SAMPLES_DIR:-./samples}:/samples
+      - ${RESULTS_DIR:-./results}:/results
+      - ${CONFIG_DIR:-./compose/config}:/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - MAU_CONFIG=/config/analyzer.yaml
+      - SAMPLES_DIR=/samples
+      - RESULTS_DIR=/results
+      - SURFACE_CONTAINER=surface-analyzer
+      - REMNUX_CONTAINER=surface-analyzer
+    depends_on:
+      - surface
+    restart: unless-stopped
+
+networks:
+  mgmt-net:
+    driver: bridge

@@ -1,0 +1,29 @@
+# Malware Unified Analyzer — runtime config (override via MAU_CONFIG)
+
+phases:
+  surface:
+    enabled: true
+    timeout_sec: 600
+    # Docker container name for docker exec (slim surface or REMnux)
+    container: ""
+  dynamic:
+    enabled: false
+    timeout_sec: 120
+  static:
+    enabled: true
+    timeout_sec: 600
+    ghidra_image: ghidra-headless:latest
+
+docker:
+  socket_url: unix://var/run/docker.sock
+  network_none: true
+  mem_limit: 4g
+
+ollama:
+  enabled: false
+  base_url: http://host.docker.internal:11434
+  model: llama3.2
+
+report:
+  html: true
+  executive_summary_llm: false
