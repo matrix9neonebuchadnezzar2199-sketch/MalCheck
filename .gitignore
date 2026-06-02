@@ -13,6 +13,8 @@ images/*.tar
 *.zip
 samples/*
 !samples/.gitkeep
+results/reports/*
+!results/reports/.gitkeep
 compose/.env.runtime
 .env
 *.log

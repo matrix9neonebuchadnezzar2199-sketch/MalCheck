@@ -232,3 +232,34 @@ As integration grows, report consumers need a stable schema signal and explicit 
 ### Verification
 
 - `pytest tests -v` passed locally (11 passed).
+
+## 2026-06-02: Launch and Web UI verification (Docker + local)
+
+### What changed
+
+- Fixed a runtime bug in `web_ui/app.py`: the index route used the legacy
+  `TemplateResponse(name, context)` signature, which fails on current
+  Starlette (1.2.x) where the first positional argument is `request`. The
+  symptom was `AttributeError: 'dict' object has no attribute 'split'` and a
+  500 on `GET /`. Switched to `TemplateResponse(request, name, context)`.
+- Added `results/reports/*` (keep `.gitkeep`) to `.gitignore` so runtime
+  report artifacts stop polluting `git status`.
+
+### Verification
+
+- Local smoke (uvicorn): `GET /` -> 200, `GET /health` -> `{"status":"ok"}`.
+- Docker stack (`docker compose up -d --build`): `mau-web`, `orchestrator`,
+  `surface-analyzer` all Up. Web UI reachable on `127.0.0.1:8080`.
+- End-to-end analyze on a harmless text sample produced a full report:
+  - surface: completed (hashes, file_type, strings, urls/ips, entropy,
+    die/yara/capa scanners all `safe`).
+  - dynamic: skipped (disabled in config).
+  - static: failed gracefully (`Ghidra image not loaded: ghidra-headless:latest`),
+    confirming per-phase error isolation does not abort the run.
+
+### Notes
+
+- Static phase needs `ghidra-headless:latest` built/loaded before it can run.
+- On Docker Desktop/WSL2, bind mounts render as 9p with `path=F:\`; this is a
+  drvfs display artifact, not a misconfigured mount (`docker inspect` confirmed
+  the correct subdirectory sources).
