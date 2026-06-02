@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MalCheck 機能分析・理想比較レポート - MalCheck Docs</title>
+  <style>
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel-2: #0b1018;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --ok: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --code: #010409;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, Helvetica, Arial, sans-serif;
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(22, 27, 34, 0.96);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  backdrop-filter: blur(12px);
+}
+.brand { max-width: 1120px; margin: 0 auto; font-weight: 700; }
+.brand span { color: var(--muted); font-weight: 500; margin-left: 8px; }
+.layout {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
+  padding: 24px 20px 56px;
+}
+.nav {
+  position: sticky;
+  top: 64px;
+  align-self: start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 12px;
+}
+.nav-title { color: var(--muted); font-size: 12px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .06em; }
+.nav a {
+  display: block;
+  color: var(--accent);
+  text-decoration: none;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 14px;
+}
+.nav a:hover { background: rgba(88,166,255,.12); text-decoration: none; }
+main {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--panel) 0, var(--bg) 180px);
+  padding: 28px;
+}
+h1, h2, h3, h4 { line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 2rem; margin-top: 0; padding-bottom: .35em; border-bottom: 1px solid var(--border); }
+h2 { font-size: 1.45rem; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.15rem; }
+p, ul, ol, table, pre, blockquote { margin-top: 0; margin-bottom: 1em; }
+a { color: var(--accent); }
+code {
+  background: rgba(110,118,129,.24);
+  border-radius: 6px;
+  padding: .15em .35em;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: .92em;
+}
+pre {
+  background: var(--code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: auto;
+  padding: 16px;
+}
+pre code { background: transparent; padding: 0; border-radius: 0; }
+pre.mermaid {
+  white-space: pre;
+  color: #d2a8ff;
+  position: relative;
+}
+pre.mermaid::before {
+  content: "mermaid";
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+blockquote {
+  border-left: 4px solid var(--border);
+  color: var(--muted);
+  padding: .2em 1em;
+  margin-left: 0;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+th, td { border: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+th { background: var(--panel-2); font-weight: 700; }
+tr:nth-child(even) td { background: rgba(110,118,129,.08); }
+hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
+.meta { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 1px 9px;
+  font-size: 12px;
+}
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; }
+  .nav { position: static; }
+  main { padding: 20px; }
+}
+</style>
+</head>
+<body>
+  <header class="topbar"><div class="brand">MalCheck Docs <span>HTML canonical documentation</span></div></header>
+  <div class="layout">
+    <aside class="nav">
+      <p class="nav-title">Documents</p>
+      <a href="architecture.html">Architecture</a>
+<a href="milestones.html">Milestones</a>
+<a href="implementation-rules.html">Implementation Rules</a>
+<a href="development-diary.html">Development Diary</a>
+<a class="current" href="feature-analysis.html">Feature Analysis</a>
+    </aside>
+    <main>
+      <div class="meta"><span class="badge">HTML canonical</span> Generated from the repository documentation source on 2026-06-02.</div>
+      <h1 id="malcheck">MalCheck 機能分析・理想比較レポート</h1>
+<p>最終更新: 2026-06-02
+対象コミット時点の実装（<code>mau/</code>, <code>scripts/remnux/analyze.py</code>, <code>web_ui/</code>, <code>compose/config/analyzer.yaml</code>）に基づく。</p>
+<p>このドキュメントは次の3点を扱う。</p>
+<ol>
+<li>現行機能のマークダウン図（機能マップ・シーケンス図・ボタン操作コードフロー図）</li>
+<li>「理想のマルウェア解析ツール」との機能比較</li>
+<li>検体投入後の挙動分析（拡張子別・特に「infected」パスワード付き ZIP の自動解凍/解析の有無）</li>
+</ol>
+<blockquote>
+<p>注意: 本書は実装の事実を記述する。検体由来の文字列・IOC は敵対的データとして扱う前提（<code>08-ai-opsec</code>）であり、設計上もオンライン照会は行わない。</p>
+</blockquote>
+<hr>
+<h2 id="1">1. 現行アーキテクチャと機能マップ</h2>
+<h3 id="11">1.1 コンポーネント構成</h3>
+<pre class="mermaid">flowchart LR
+    user([アナリスト]) --&gt;|ブラウザ| web
+
+    subgraph stack[&quot;docker compose (mgmt-net)&quot;]
+        web[&quot;mau-web&lt;br/&gt;FastAPI + Jinja2&lt;br/&gt;:8080&quot;]
+        orch[&quot;orchestrator&lt;br/&gt;sleep infinity&lt;br/&gt;(mau パッケージ常駐)&quot;]
+        surface[&quot;surface-analyzer&lt;br/&gt;/scripts/analyze.py&quot;]
+        ghidra[&quot;ghidra-headless&lt;br/&gt;(任意・要ビルド)&quot;]
+    end
+
+    web --&gt;|run_pipeline 直接 import| mau
+    web -. docker exec .-&gt; surface
+    web -. docker run --network none .-&gt; ghidra
+
+    subgraph vols[&quot;共有ボリューム&quot;]
+        samples[(&quot;/samples&quot;)]
+        results[(&quot;/results&quot;)]
+        config[(&quot;/config/analyzer.yaml&quot;)]
+    end
+
+    web --- samples
+    web --- results
+    web --- config
+    surface --- samples
+    ghidra --- results
+
+    mau[&quot;mau.phase_router.run_pipeline()&quot;]
+</pre>
+<p>補足:
+- Web UI は <code>mau.phase_router.run_pipeline</code> を<strong>同一プロセス内で直接呼び出す</strong>（HTTP 越しに orchestrator を叩く構成ではない）。<code>orchestrator</code> コンテナは CLI 実行用に常駐しているが、Web 経路では surface コンテナへの <code>docker exec</code> と Ghidra の <code>docker run</code> を web コンテナ自身が Docker ソケット経由で行う。
+- 解析は同期実行（キュー/ジョブ管理なし、1リクエスト1解析）。</p>
+<h3 id="12">1.2 機能マップ（実装済み / 部分 / 未実装）</h3>
+<pre class="mermaid">flowchart TD
+    root[&quot;MalCheck&quot;]
+
+    root --&gt; intake[&quot;取り込み&quot;]
+    intake --&gt; i1[&quot;ファイル保存 (samples)&quot;]
+    intake --&gt; i2[&quot;ファイル名サニタイズ&quot;]
+    intake --x i3[&quot;アーカイブ自動解凍 ❌&quot;]
+    intake --x i4[&quot;拡張子/MIME ルーティング ❌&quot;]
+
+    root --&gt; p1[&quot;Phase 1 表層解析 ✅&quot;]
+    p1 --&gt; s1[&quot;MD5 / SHA256&quot;]
+    p1 --&gt; s2[&quot;file type (libmagic/file)&quot;]
+    p1 --&gt; s3[&quot;ASCII strings 抽出&quot;]
+    p1 --&gt; s4[&quot;IOC: URL / IPv4&quot;]
+    p1 --&gt; s5[&quot;エントロピー&quot;]
+    p1 --&gt; s6[&quot;DIE パッカー検出&quot;]
+    p1 --&gt; s7[&quot;YARA (rules_dir)&quot;]
+    p1 --&gt; s8[&quot;capa&quot;]
+    p1 --&gt; s9[&quot;scanner_results 正規化 + overall_risk&quot;]
+
+    root --&gt; p2[&quot;Phase 2 動的解析 ⚠️&quot;]
+    p2 --&gt; d1[&quot;既定 disabled&quot;]
+    p2 --&gt; d2[&quot;MAU_DYNAMIC_HOOK で外部スクリプト&quot;]
+    p2 --x d3[&quot;サンドボックス/CAPE 本体 ❌&quot;]
+
+    root --&gt; p3[&quot;Phase 3 静的解析 ⚠️&quot;]
+    p3 --&gt; t1[&quot;Ghidra headless (要イメージ)&quot;]
+    p3 --&gt; t2[&quot;decompiled.c / functions.json / metadata.json&quot;]
+    p3 --&gt; t3[&quot;network none + mem 制限&quot;]
+    p3 --x t4[&quot;CFG/コールグラフ/xref UI ❌ (MalCheck 側)&quot;]
+
+    root --&gt; rep[&quot;レポート ✅&quot;]
+    rep --&gt; r1[&quot;JSON (schema 2.0)&quot;]
+    rep --&gt; r2[&quot;HTML&quot;]
+    rep --&gt; r3[&quot;ヒューリスティック verdict/score&quot;]
+    rep --&gt; r4[&quot;IOC 集約&quot;]
+    rep --&gt; r5[&quot;MITRE: capa rule 名のみ ⚠️&quot;]
+    rep --&gt; r6[&quot;Ollama 要約 (任意)&quot;]
+
+    root --&gt; ui[&quot;Web UI ⚠️&quot;]
+    ui --&gt; u1[&quot;アップロード / Analyze&quot;]
+    ui --&gt; u2[&quot;verdict + raw JSON 表示&quot;]
+    ui --x u3[&quot;レポート HTML 直リンク配信 ❌&quot;]
+    ui --x u4[&quot;履歴 / 検索 / 関数ブラウザ ❌&quot;]
+</pre>
+<p>凡例: ✅ 実装済み / ⚠️ 部分的・要前提 / ❌ 未実装</p>
+<hr>
+<h2 id="2">2. シーケンス図（検体投入 → レポート）</h2>
+<pre class="mermaid">sequenceDiagram
+    autonumber
+    actor U as アナリスト
+    participant B as ブラウザ (index.html)
+    participant W as FastAPI (/analyze)
+    participant PR as phase_router.run_pipeline
+    participant SR as surface_runner
+    participant SC as surface-analyzer (docker exec)
+    participant DY as dynamic_analyzer
+    participant ST as static_analyzer
+    participant GH as ghidra-headless (docker run)
+    participant RG as report_generator
+    participant FS as /results/reports
+
+    U-&gt;&gt;B: ファイル選択 → Analyze クリック
+    B-&gt;&gt;W: POST /analyze (multipart FormData)
+    W-&gt;&gt;W: ファイル名検証 + /samples に保存
+    W-&gt;&gt;PR: run_pipeline(dest, sample_name)
+    PR-&gt;&gt;PR: load_config(analyzer.yaml)
+
+    rect rgb(20,40,60)
+    note over PR,SC: Phase 1 表層解析 (enabled)
+    PR-&gt;&gt;SR: run_surface_analysis()
+    SR-&gt;&gt;SC: exec python3 /scripts/analyze.py /samples/&lt;file&gt;
+    SC--&gt;&gt;SR: JSON (hashes, strings, IOC, scanners...)
+    SR--&gt;&gt;PR: surface dict
+    end
+
+    rect rgb(60,50,20)
+    note over PR,DY: Phase 2 動的解析 (既定 disabled)
+    PR-&gt;&gt;DY: run_dynamic_analysis(enabled=False)
+    DY--&gt;&gt;PR: {status: skipped}
+    end
+
+    rect rgb(40,20,60)
+    note over PR,GH: Phase 3 静的解析 (enabled だが要イメージ)
+    PR-&gt;&gt;ST: run_static_analysis()
+    alt Ghidra イメージあり
+        ST-&gt;&gt;GH: containers.run(target.bin, network none)
+        GH--&gt;&gt;ST: decompiled.c / functions.json
+        ST--&gt;&gt;PR: static dict
+    else イメージ未ロード
+        ST--&gt;&gt;PR: StaticError (フェーズ単位で失敗扱い)
+    end
+    end
+
+    PR-&gt;&gt;RG: generate_report(surface, dynamic, static)
+    RG-&gt;&gt;FS: &lt;name&gt;.json + &lt;name&gt;.html 書き出し
+    RG--&gt;&gt;PR: report (+ _paths, verdict)
+    PR--&gt;&gt;W: {report, surface, dynamic, static}
+    W--&gt;&gt;B: JSON {ok, sample, report_json, report_html, verdict}
+    B-&gt;&gt;U: verdict ラベル / score / reasons / raw JSON 表示
+</pre>
+<p>ポイント:
+- 各フェーズは <code>try/except</code> で隔離され、1フェーズの失敗が全体を止めない（static の Ghidra 未ロードは <code>failed</code> として記録され surface 結果は残る）。
+- HTML レポートは生成されるが、<code>report_html</code> は<strong>コンテナ内パス文字列</strong>として返るだけで、UI から直接開けるエンドポイントは無い。</p>
+<hr>
+<h2 id="3">3. ボタン操作コードフロー図</h2>
+<p>ユーザーの 2 つの操作（「ファイルを選択」「Analyze」）からコードまでの流れ。</p>
+<pre class="mermaid">flowchart TD
+    subgraph FE[&quot;フロントエンド index.html&quot;]
+        click1[&quot;『ファイルを選択』クリック&quot;] --&gt; lbl[&quot;label[for=file] が&lt;br/&gt;hidden input をトリガ&quot;]
+        lbl --&gt; change[&quot;input.onchange&quot;] --&gt; fname[&quot;filename 表示更新&quot;]
+
+        click2[&quot;『Analyze』クリック&quot;] --&gt; submit[&quot;form.onsubmit&quot;]
+        submit --&gt; prevent[&quot;preventDefault()&quot;]
+        prevent --&gt; disable[&quot;submit 無効化 + '解析中…'&quot;]
+        disable --&gt; fetch[&quot;fetch POST /analyze&lt;br/&gt;(FormData)&quot;]
+        fetch --&gt; resp{&quot;r.ok?&quot;}
+        resp -- いいえ --&gt; flash[&quot;flash にエラー表示&quot;]
+        resp -- はい --&gt; render[&quot;verdict ラベル(色分け)&lt;br/&gt;score / reasons / paths / raw JSON&quot;]
+    end
+
+    subgraph BE[&quot;バックエンド app.py /analyze&quot;]
+        fetch --&gt; v1[&quot;filename 必須チェック&quot;]
+        v1 --&gt; v2[&quot;'..' / 先頭'/' 拒否&quot;]
+        v2 --&gt; save[&quot;tempfile → /samples/&lt;safe_name&gt; へ move&quot;]
+        save --&gt; call[&quot;run_pipeline(dest, sample_name)&quot;]
+        call --&gt; ok{&quot;例外?&quot;}
+        ok -- はい --&gt; del[&quot;dest.unlink() + HTTP 500&quot;]
+        ok -- いいえ --&gt; ret[&quot;JSON 応答&lt;br/&gt;(report_json/html, verdict)&quot;]
+    end
+
+    subgraph PIPE[&quot;パイプライン phase_router&quot;]
+        call --&gt; ph1[&quot;Phase1 surface&quot;]
+        ph1 --&gt; ph2[&quot;Phase2 dynamic&quot;]
+        ph2 --&gt; ph3[&quot;Phase3 static&quot;]
+        ph3 --&gt; rep[&quot;report_generator → JSON/HTML&quot;]
+        rep --&gt; ret
+    end
+
+    render --&gt; done([完了])
+    flash --&gt; done
+    del --&gt; done
+</pre>
+<p>UI が扱う <code>/analyze</code> 応答フィールド: <code>ok</code>, <code>sample</code>, <code>report_json</code>, <code>report_html</code>, <code>verdict{label,score,reasons}</code>。
+（surface/dynamic/static の本体や <code>phase_status</code> は応答に含めず、レポートファイル側にのみ存在する。）</p>
+<hr>
+<h2 id="4">4. 検体投入後の挙動分析（拡張子別）</h2>
+<h3 id="41">4.1 重要な事実: 入力は型に依らず単一経路</h3>
+<p>現行実装には<strong>拡張子判定も MIME ルーティングも存在しない</strong>。<code>/analyze</code> は受け取ったファイルをそのまま <code>/samples</code> に置き、<code>analyze.py</code> が中身を「バイト列」として扱う:</p>
+<ul>
+<li>ハッシュ、<code>file</code>/libmagic による型推定（<strong>表示のみ</strong>。後続処理の分岐には使わない）</li>
+<li>先頭 4MB から ASCII strings → URL/IPv4 抽出</li>
+<li>エントロピー（&gt;7.2 で「high entropy」= packer detected=True 扱い）</li>
+<li>DIE / YARA / capa を<strong>ファイル全体</strong>に対して実行</li>
+</ul>
+<p>Ghidra 静的解析も型に関係なく <code>target.bin</code> として読み込むため、PE/ELF 以外は基本的に意味のある関数が出ない（フェーズ失敗または空に近い結果）。</p>
+<h3 id="42">4.2 拡張子別の実際の挙動</h3>
+<table>
+<thead>
+<tr>
+<th>投入ファイル</th>
+<th>file type 表示</th>
+<th>strings/IOC</th>
+<th>entropy 判定</th>
+<th>YARA/capa</th>
+<th>Ghidra 静的</th>
+<th>実用度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PE (.exe/.dll)</td>
+<td>正しく PE 表示</td>
+<td>◯（PE 内文字列）</td>
+<td>パック時 high</td>
+<td>YARA◯ / capa はPE向きで◯</td>
+<td>◯（本来の対象）</td>
+<td><strong>高</strong></td>
+</tr>
+<tr>
+<td>ELF / Mach-O</td>
+<td>正しく表示</td>
+<td>◯</td>
+<td>場合による</td>
+<td>YARA◯ / capa一部</td>
+<td>◯</td>
+<td>中〜高</td>
+</tr>
+<tr>
+<td>スクリプト (.js/.ps1/.vbs/.py)</td>
+<td>text 系表示</td>
+<td>◯（コードが平文）</td>
+<td>低</td>
+<td>YARA◯ / capa✕</td>
+<td>✕（コード逆コンパイル対象外）</td>
+<td>中（strings/YARA のみ）</td>
+</tr>
+<tr>
+<td>Office (.doc/.docx/.xlsm)</td>
+<td>表示のみ</td>
+<td>△（OOXML は zip 圧縮で平文化されず）</td>
+<td>docx は high</td>
+<td>マクロ専用解析 ✕</td>
+<td>✕</td>
+<td><strong>低</strong>（olevba 等が無い）</td>
+</tr>
+<tr>
+<td>PDF (.pdf)</td>
+<td>表示のみ</td>
+<td>△</td>
+<td>中</td>
+<td>PDF 専用解析 ✕</td>
+<td>✕</td>
+<td><strong>低</strong>（pdfid/pdf-parser が無い）</td>
+</tr>
+<tr>
+<td>非暗号 ZIP/7z/tar</td>
+<td>"Zip archive" 等</td>
+<td>✕（圧縮データ）</td>
+<td>high（≒8.0）→packer flag</td>
+<td>中身に当たらない</td>
+<td>✕</td>
+<td><strong>低</strong>（解凍しない）</td>
+</tr>
+<tr>
+<td>暗号化 ZIP「infected」</td>
+<td>"Zip ... encrypted"</td>
+<td>✕</td>
+<td>high → packer flag</td>
+<td>中身に当たらない</td>
+<td>✕</td>
+<td><strong>ほぼ無</strong>（後述）</td>
+</tr>
+<tr>
+<td>生 shellcode (.bin)</td>
+<td>data</td>
+<td>◯（部分）</td>
+<td>high</td>
+<td>YARA◯</td>
+<td>✕（PE/ELF前提）</td>
+<td>低〜中</td>
+</tr>
+</tbody>
+</table>
+<p>凡例: ◯ 有効 / △ 限定的 / ✕ 実質機能しない</p>
+<h3 id="43infected-zip">4.3「infected」パスワード付き ZIP を投入した場合（自動解凍・解析の有無）</h3>
+<p>結論: <strong>自動解凍は行われない。パスワード <code>infected</code> の試行も無い。中身は一切解析されない。</strong></p>
+<p>実際に起きること（コードパス: <code>app.py /analyze</code> → <code>analyze.py analyze()</code>）:</p>
+<pre class="mermaid">flowchart TD
+    z[&quot;infected.zip&lt;br/&gt;(暗号化, pw=infected)&quot;] --&gt; save[&quot;/samples へ保存&quot;]
+    save --&gt; hash[&quot;MD5/SHA256 = ZIP 全体のハッシュ&quot;]
+    hash --&gt; ft[&quot;file type = 'Zip archive data, ... encrypted'&quot;]
+    ft --&gt; str[&quot;strings = ZIPヘッダ断片のみ&lt;br/&gt;(中身は暗号化で読めない)&quot;]
+    str --&gt; ent[&quot;entropy ≈ 7.9-8.0 → high_entropy&lt;br/&gt;packer detected = True (誤検知的)&quot;]
+    ent --&gt; scan[&quot;YARA/capa は ZIP バイト列に対して実行&lt;br/&gt;→ 中身のマルウェアには当たらない&quot;]
+    scan --&gt; gh[&quot;Ghidra: ZIP を target.bin として読込 → 関数なし/失敗&quot;]
+    gh --&gt; verdict[&quot;verdict: low〜suspicious&lt;br/&gt;(中身ではなく entropy/packer 由来)&quot;]
+
+    classDef bad fill:#3a1313,stroke:#f85149,color:#ffb;
+    class scan,gh,verdict bad
+</pre>
+<p>つまり、<code>infected.zip</code> を投げても得られるのは「暗号化 ZIP である」という外形情報と、エントロピー由来の弱い疑い評価のみで、<strong>梱包されたマルウェア本体は解析されない</strong>。マルウェア配布で常用される <code>infected</code> パスワード ZIP に対して、現状ツールは triage 価値をほぼ提供できない。これは優先度の高い機能ギャップ。</p>
+<h4 id="_1">あるべき挙動（推奨設計）</h4>
+<pre class="mermaid">flowchart TD
+    up[&quot;アーカイブ投入&quot;] --&gt; detect[&quot;MIME/マジック判定: zip/7z/rar/tar/gz&quot;]
+    detect --&gt; pw[&quot;パスワード試行リスト&lt;br/&gt;['', 'infected', 'malware', 'virus', ユーザー指定...]&quot;]
+    pw --&gt; ext[&quot;安全な一時領域へ展開&lt;br/&gt;(サイズ上限/ファイル数上限/zip-bomb 対策&lt;br/&gt;/パストラバーサル防止)&quot;]
+    ext --&gt; fanout[&quot;展開ファイルごとに run_pipeline を再帰実行&lt;br/&gt;(再帰深さ上限)&quot;]
+    fanout --&gt; agg[&quot;親アーカイブ配下に子レポートを集約&lt;br/&gt;verdict は子の最大リスクを伝播&quot;]
+</pre>
+<p>実装上の必須ガード: 解凍サイズ上限・展開ファイル数上限・再帰深さ上限（zip bomb）、パストラバーサル無害化、展開物は隔離領域のみ、ネットワーク無し。<code>pyzipper</code>/<code>py7zr</code>/<code>rarfile</code> 等の導入を検討。</p>
+<hr>
+<h2 id="5">5. 理想のマルウェア解析ツールとの比較</h2>
+<p>「理想」は、表層 → 静的 → 動的を横断する triage プラットフォーム（REMnux + CAPE + 静的RE + 脅威インテリ連携）を基準にする。</p>
+<h3 id="51">5.1 機能比較表</h3>
+<table>
+<thead>
+<tr>
+<th>領域</th>
+<th>理想機能</th>
+<th>MalCheck 現状</th>
+<th>判定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>取り込み</td>
+<td>型判定・ハッシュ</td>
+<td>file/libmagic + MD5/SHA256</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>取り込み</td>
+<td>ファジーハッシュ (ssdeep/TLSH/imphash)</td>
+<td>なし</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>取り込み</td>
+<td>MIME/拡張子ルーティング</td>
+<td>なし（単一経路）</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>取り込み</td>
+<td>アーカイブ自動解凍（pw <code>infected</code> 含む）</td>
+<td><strong>なし</strong></td>
+<td>❌</td>
+</tr>
+<tr>
+<td>取り込み</td>
+<td>再帰展開 + 子検体ファンアウト</td>
+<td>なし</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>表層</td>
+<td>strings / IOC 抽出</td>
+<td>URL/IPv4（domain/email/registry/mutex なし）</td>
+<td>⚠️</td>
+</tr>
+<tr>
+<td>表層</td>
+<td>エントロピー / パッカー検出</td>
+<td>entropy + DIE</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>表層</td>
+<td>YARA / capa</td>
+<td>両方あり</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>表層</td>
+<td>PE/ELF ヘッダ解析（imports/exports/sections/Authenticode）</td>
+<td>なし（型は表示のみ）</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>表層</td>
+<td>ドキュメント解析（olevba/oletools, pdfid）</td>
+<td>なし</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>静的</td>
+<td>逆コンパイル（Ghidra）</td>
+<td>あり（要イメージ）</td>
+<td>⚠️</td>
+</tr>
+<tr>
+<td>静的</td>
+<td>CFG / コールグラフ / xref / suspicious API</td>
+<td>MalCheck 単体は JSON 受領のみ、可視化UIなし</td>
+<td>⚠️</td>
+</tr>
+<tr>
+<td>静的</td>
+<td>検体間 diff</td>
+<td>なし</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>動的</td>
+<td>サンドボックス実行（CAPE/Cuckoo）</td>
+<td>hook のみ、本体なし</td>
+<td>⚠️</td>
+</tr>
+<tr>
+<td>動的</td>
+<td>API フック / 挙動 / メモリダンプ / config 抽出</td>
+<td>なし</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>動的</td>
+<td>ネットワークシミュレーション（INetSim）</td>
+<td>なし</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>脅威インテリ</td>
+<td>ATT&amp;CK / MBC マッピング</td>
+<td>capa rule 名を転記のみ（正規 TTP 紐付けなし）</td>
+<td>⚠️</td>
+</tr>
+<tr>
+<td>脅威インテリ</td>
+<td>IOC エンリッチ（オフライン）</td>
+<td>なし（オンライン照会は方針上も禁止）</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>レポート</td>
+<td>JSON + HTML</td>
+<td>あり（schema 2.0）</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>レポート</td>
+<td>verdict / スコアリング</td>
+<td>ヒューリスティック加点</td>
+<td>⚠️</td>
+</tr>
+<tr>
+<td>レポート</td>
+<td>IOC エクスポート（STIX/MISP/CSV）</td>
+<td>なし</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>レポート</td>
+<td>LLM 要約</td>
+<td>Ollama 任意</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>基盤</td>
+<td>ジョブキュー / 並列</td>
+<td>なし（同期1件）</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>基盤</td>
+<td>履歴 / 検索 / 認証</td>
+<td>なし</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>基盤</td>
+<td>ネットワーク隔離 / 検体ゼロ化</td>
+<td>Ghidra は network none。検体の自動削除/ゼロ化は未整備</td>
+<td>⚠️</td>
+</tr>
+<tr>
+<td>UI</td>
+<td>アップロード / 結果表示</td>
+<td>あり（GitHub 風）</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>UI</td>
+<td>レポート HTML 直接表示 / 関数ブラウザ</td>
+<td>なし（パス文字列のみ）</td>
+<td>❌</td>
+</tr>
+</tbody>
+</table>
+<p>判定: ✅ 充足 / ⚠️ 部分・要前提 / ❌ 欠落</p>
+<h3 id="52">5.2 カバレッジの俯瞰</h3>
+<pre class="mermaid">flowchart LR
+    subgraph have[&quot;強み (✅)&quot;]
+        h1[&quot;表層スキャナ群&lt;br/&gt;YARA/capa/DIE/entropy&quot;]
+        h2[&quot;フェーズ分離 + 安全失敗&quot;]
+        h3[&quot;JSON/HTML レポート + verdict&quot;]
+        h4[&quot;ネットワーク隔離 Ghidra 設計&quot;]
+    end
+    subgraph partial[&quot;部分 (⚠️)&quot;]
+        p1[&quot;動的解析は hook 止まり&quot;]
+        p2[&quot;静的は要イメージ・可視化なし&quot;]
+        p3[&quot;ATT&amp;CK は rule 転記のみ&quot;]
+        p4[&quot;IOC は URL/IP のみ&quot;]
+    end
+    subgraph gap[&quot;重大ギャップ (❌)&quot;]
+        g1[&quot;アーカイブ自動解凍&lt;br/&gt;(infected ZIP)&quot;]
+        g2[&quot;型別ルーティング&quot;]
+        g3[&quot;PE/Office/PDF 専用解析&quot;]
+        g4[&quot;ジョブ基盤/履歴/HTML配信&quot;]
+    end
+</pre>
+<hr>
+<h2 id="6">6. 優先度付き改善提案</h2>
+<p>理想との差分から、triage 実用性への寄与が大きい順:</p>
+<ol>
+<li><strong>アーカイブ自動解凍 + 型ルーティング（最優先）</strong>
+   <code>infected</code> を含むパスワード試行、安全展開（zip-bomb/トラバーサル対策）、展開ファイルごとの再帰解析。これが無いと現実の検体配布形態に対応できない。</li>
+<li><strong>型別の表層解析強化</strong>
+   PE ヘッダ解析（imports/exports/sections/imphash/Authenticode）、Office（olevba）、PDF（pdfid）。<code>file_type</code> を表示用から<strong>ルーティングキー</strong>へ昇格。</li>
+<li><strong>IOC 拡充 + エクスポート</strong>
+   domain/email/registry/mutex 抽出、ssdeep/TLSH、STIX/MISP/CSV 出力（オフライン）。</li>
+<li><strong>レポート HTML をブラウザで開けるよう配信</strong>
+   <code>report_html</code> を静的配信 or 結果ページ統合（現状はパス文字列のみで UX が途切れる）。</li>
+<li><strong>ATT&amp;CK 正規マッピング</strong>
+   capa の MBC/ATT&amp;CK メタを正規 technique ID へ（<code>Custom-AttckMapper</code> 準拠）。</li>
+<li><strong>動的解析の本実装（中長期）</strong>
+   CAPE/VM + INetSim を <code>MAU_DYNAMIC_HOOK</code> 契約の先に接続。</li>
+<li><strong>ジョブ基盤 / 履歴 / 検体ライフサイクル管理</strong>
+   同期1件 → キュー化、解析後の検体ゼロ化・保持ポリシー。</li>
+</ol>
+<hr>
+<h2 id="_2">付録: 参照したコード</h2>
+<ul>
+<li>取り込み/応答: <code>web_ui/app.py</code>（<code>/analyze</code>, <code>index</code>）</li>
+<li>パイプライン: <code>mau/phase_router.py</code>（<code>run_pipeline</code>）</li>
+<li>表層: <code>mau/surface_runner.py</code> + <code>scripts/remnux/analyze.py</code>（<code>analyze</code>）</li>
+<li>動的: <code>mau/dynamic_analyzer.py</code></li>
+<li>静的: <code>mau/static_analyzer.py</code></li>
+<li>レポート/判定: <code>mau/report_generator.py</code>（<code>calculate_verdict</code>, <code>generate_report</code>）</li>
+<li>設定: <code>mau/config.py</code>, <code>compose/config/analyzer.yaml</code></li>
+<li>比較参照: <code>../cyber-ghidra-webui-main/ROADMAP.md</code></li>
+</ul>
+    </main>
+  </div>
+</body>
+</html>

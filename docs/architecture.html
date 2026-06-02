@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MalCheck Integrated Architecture - MalCheck Docs</title>
+  <style>
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel-2: #0b1018;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --ok: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --code: #010409;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, Helvetica, Arial, sans-serif;
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(22, 27, 34, 0.96);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  backdrop-filter: blur(12px);
+}
+.brand { max-width: 1120px; margin: 0 auto; font-weight: 700; }
+.brand span { color: var(--muted); font-weight: 500; margin-left: 8px; }
+.layout {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
+  padding: 24px 20px 56px;
+}
+.nav {
+  position: sticky;
+  top: 64px;
+  align-self: start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 12px;
+}
+.nav-title { color: var(--muted); font-size: 12px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .06em; }
+.nav a {
+  display: block;
+  color: var(--accent);
+  text-decoration: none;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 14px;
+}
+.nav a:hover { background: rgba(88,166,255,.12); text-decoration: none; }
+main {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--panel) 0, var(--bg) 180px);
+  padding: 28px;
+}
+h1, h2, h3, h4 { line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 2rem; margin-top: 0; padding-bottom: .35em; border-bottom: 1px solid var(--border); }
+h2 { font-size: 1.45rem; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.15rem; }
+p, ul, ol, table, pre, blockquote { margin-top: 0; margin-bottom: 1em; }
+a { color: var(--accent); }
+code {
+  background: rgba(110,118,129,.24);
+  border-radius: 6px;
+  padding: .15em .35em;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: .92em;
+}
+pre {
+  background: var(--code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: auto;
+  padding: 16px;
+}
+pre code { background: transparent; padding: 0; border-radius: 0; }
+pre.mermaid {
+  white-space: pre;
+  color: #d2a8ff;
+  position: relative;
+}
+pre.mermaid::before {
+  content: "mermaid";
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+blockquote {
+  border-left: 4px solid var(--border);
+  color: var(--muted);
+  padding: .2em 1em;
+  margin-left: 0;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+th, td { border: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+th { background: var(--panel-2); font-weight: 700; }
+tr:nth-child(even) td { background: rgba(110,118,129,.08); }
+hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
+.meta { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 1px 9px;
+  font-size: 12px;
+}
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; }
+  .nav { position: static; }
+  main { padding: 20px; }
+}
+</style>
+</head>
+<body>
+  <header class="topbar"><div class="brand">MalCheck Docs <span>HTML canonical documentation</span></div></header>
+  <div class="layout">
+    <aside class="nav">
+      <p class="nav-title">Documents</p>
+      <a class="current" href="architecture.html">Architecture</a>
+<a href="milestones.html">Milestones</a>
+<a href="implementation-rules.html">Implementation Rules</a>
+<a href="development-diary.html">Development Diary</a>
+<a href="feature-analysis.html">Feature Analysis</a>
+    </aside>
+    <main>
+      <div class="meta"><span class="badge">HTML canonical</span> Generated from the repository documentation source on 2026-06-02.</div>
+      <h1 id="malcheck-integrated-architecture">MalCheck Integrated Architecture</h1>
+<p>Last updated: 2026-06-02</p>
+<h2 id="purpose">Purpose</h2>
+<p>MalCheck is the long-term home for a unified malware analysis workflow. The goal is to keep MalCheck's phase-based orchestration and report generation, while bringing in the strongest parts of Cyber Ghidra WebUI: richer Ghidra JSON, static scanner plugins, unpacking, and reverse-engineering focused UI patterns.</p>
+<p>The target product is not a live Ghidra replacement. It is an offline-friendly analysis orchestrator that accepts a sample, runs surface/static/dynamic phases under explicit safety boundaries, and produces machine-readable JSON plus analyst-friendly reports.</p>
+<h2 id="current-baseline">Current Baseline</h2>
+<p>MalCheck already has the core orchestration shape:</p>
+<ul>
+<li><code>mau.phase_router.run_pipeline()</code> runs <code>surface</code>, <code>dynamic</code>, and <code>static</code> phases.</li>
+<li><code>mau.surface_runner</code> delegates surface analysis to a Docker container or local fallback.</li>
+<li><code>mau.dynamic_analyzer</code> is a structured stub with optional <code>MAU_DYNAMIC_HOOK</code>.</li>
+<li><code>mau.static_analyzer</code> launches a network-isolated Ghidra container.</li>
+<li><code>mau.report_generator</code> creates JSON and HTML reports.</li>
+<li><code>web_ui.app</code> provides a minimal upload-and-run FastAPI UI.</li>
+</ul>
+<p>Cyber Ghidra WebUI contributes capabilities that MalCheck should selectively absorb:</p>
+<ul>
+<li>Rich <code>*_analysis.json</code> from <code>scripts/ghidra/auto_analyze.py</code>.</li>
+<li>Function-level decompile data, CFG, xrefs, call graph, suspicious API extraction, and line-address mapping.</li>
+<li>MIME-routed scanner plugins for PE, ELF, Mach-O, PDF, Office, APK, binwalk, capa, LIEF, pefile, oletools, and pdfid.</li>
+<li>Stronger reverse-engineering UI concepts such as function trees, graph views, xref panels, and history reopening.</li>
+<li>Safer upload routing for archives and non-native documents.</li>
+</ul>
+<h2 id="guiding-decisions">Guiding Decisions</h2>
+<ol>
+<li>
+<p>MalCheck remains the parent project.
+   The phase router, report shape, USB/offline workflow, and CLI entry point stay in MalCheck.</p>
+</li>
+<li>
+<p>Cyber Ghidra is mined for engines and UI concepts, not copied wholesale.
+   Integrate the scanner runner, Ghidra export schema, and selected UI patterns incrementally.</p>
+</li>
+<li>
+<p>The unified report is the stable contract.
+   Every phase writes structured JSON. UI and reports read that JSON rather than reaching into tool-specific temporary files.</p>
+</li>
+<li>
+<p>Dynamic analysis is staged.
+   The first milestone formalizes a JSON hook contract. CAPE/VM/FakeNet integration is a later milestone, not part of the first usable version.</p>
+</li>
+<li>
+<p>Network isolation is a hard boundary.
+   Ghidra/static analysis containers must keep <code>network_mode: none</code> or equivalent isolation. Dynamic analysis requires a dedicated lab network.</p>
+</li>
+</ol>
+<h2 id="target-pipeline">Target Pipeline</h2>
+<pre class="mermaid">flowchart TD
+    sample[Sample] --&gt; intake[Intake and Validation]
+    intake --&gt; surface[Phase 1 Surface]
+    intake --&gt; static[Phase 3 Static]
+    intake --&gt; dynamic[Phase 2 Dynamic Hook]
+
+    surface --&gt; scanners[Scanner Adapter]
+    scanners --&gt; surfaceJson[Surface JSON]
+
+    static --&gt; ghidra[Cyber Ghidra Adapter]
+    ghidra --&gt; staticJson[Static JSON]
+
+    dynamic --&gt; dynamicJson[Dynamic JSON]
+
+    surfaceJson --&gt; report[Unified Report]
+    staticJson --&gt; report
+    dynamicJson --&gt; report
+
+    report --&gt; html[HTML Report]
+    report --&gt; api[JSON API]
+    report --&gt; ui[Web UI]
+</pre>
+<h2 id="unified-report-contract">Unified Report Contract</h2>
+<p>The report must remain backward compatible with the current MalCheck keys while adding richer subdocuments.</p>
+<pre><code class="language-json">{
+  &quot;meta&quot;: {
+    &quot;schema_version&quot;: &quot;2.0&quot;,
+    &quot;timestamp&quot;: &quot;...&quot;,
+    &quot;sample_name&quot;: &quot;sample.exe&quot;
+  },
+  &quot;verdict&quot;: {
+    &quot;label&quot;: &quot;suspicious&quot;,
+    &quot;score&quot;: 45,
+    &quot;reasons&quot;: []
+  },
+  &quot;phase1_surface&quot;: {
+    &quot;hashes&quot;: {},
+    &quot;file_type&quot;: &quot;...&quot;,
+    &quot;strings_sample&quot;: [],
+    &quot;urls&quot;: [],
+    &quot;ips&quot;: [],
+    &quot;scanner_results&quot;: []
+  },
+  &quot;phase2_dynamic&quot;: {
+    &quot;status&quot;: &quot;skipped&quot;,
+    &quot;network&quot;: {},
+    &quot;processes&quot;: [],
+    &quot;filesystem&quot;: [],
+    &quot;registry&quot;: []
+  },
+  &quot;phase3_static&quot;: {
+    &quot;engine&quot;: &quot;cyber_ghidra&quot;,
+    &quot;analysis_json&quot;: {},
+    &quot;summary&quot;: {}
+  },
+  &quot;iocs&quot;: {},
+  &quot;mitre_mapping&quot;: []
+}
+</code></pre>
+<h2 id="phase-responsibilities">Phase Responsibilities</h2>
+<h3 id="phase-1-surface">Phase 1: Surface</h3>
+<p>Surface analysis should be fast, resilient, and safe to run before deep static analysis.</p>
+<p>Responsibilities:</p>
+<ul>
+<li>Hashes and file type.</li>
+<li>Strings sample and simple IOC extraction.</li>
+<li>Entropy and packer hints.</li>
+<li>YARA and capa results.</li>
+<li>MIME-specific scanner results once Cyber Ghidra scanner plugins are adapted.</li>
+</ul>
+<p>Non-goals:</p>
+<ul>
+<li>Full decompilation.</li>
+<li>Internet lookups.</li>
+<li>Live detonation.</li>
+</ul>
+<h3 id="phase-2-dynamic">Phase 2: Dynamic</h3>
+<p>The dynamic phase is currently a contract, not a full sandbox.</p>
+<p>Initial responsibility:</p>
+<ul>
+<li>Return <code>skipped</code>, <code>not_implemented</code>, <code>error</code>, or hook-produced JSON in a stable shape.</li>
+<li>Accept JSON from <code>MAU_DYNAMIC_HOOK</code>.</li>
+<li>Display the dynamic status clearly in HTML/UI.</li>
+</ul>
+<p>Future responsibility:</p>
+<ul>
+<li>CAPEv2 API integration or a dedicated VM controller.</li>
+<li>Network, process, registry, filesystem, screenshot, and PCAP summaries.</li>
+</ul>
+<h3 id="phase-3-static">Phase 3: Static</h3>
+<p>Static analysis should migrate toward Cyber Ghidra's richer JSON.</p>
+<p>Responsibilities:</p>
+<ul>
+<li>Run Ghidra headless in an isolated container.</li>
+<li>Produce function-level decompile data.</li>
+<li>Export imports, strings, exports, suspicious APIs, CFG, xrefs, and call graph where available.</li>
+<li>Preserve legacy MalCheck summary fields during migration.</li>
+</ul>
+<p>Non-goals:</p>
+<ul>
+<li>Interactive Ghidra project editing.</li>
+<li>Symbol renaming or type edits from the Web UI.</li>
+<li>Network access from the static analysis container.</li>
+</ul>
+<h2 id="integration-options">Integration Options</h2>
+<h3 id="recommended-short-term-path">Recommended Short-Term Path</h3>
+<p>Use MalCheck as the orchestrator and integrate Cyber Ghidra engines through adapters:</p>
+<ul>
+<li><code>surface_scanner_adapter</code>: converts Cyber Ghidra scanner results into <code>phase1_surface.scanner_results</code>.</li>
+<li><code>cyber_ghidra_static_adapter</code>: runs or imports Cyber Ghidra-compatible <code>analysis_json</code> into <code>phase3_static</code>.</li>
+<li><code>report_schema_v2</code>: lets report/UI code consume both old and new phase payloads.</li>
+</ul>
+<h3 id="avoid-initially">Avoid Initially</h3>
+<ul>
+<li>Running both MalCheck Ghidra and Cyber Ghidra Ghidra pipelines in parallel.</li>
+<li>Rebuilding the whole application as microservices before the report schema is stable.</li>
+<li>Implementing a custom VM sandbox before the dynamic JSON contract is tested.</li>
+</ul>
+<h2 id="safety-model">Safety Model</h2>
+<ul>
+<li>Treat every sample and extracted string as hostile data.</li>
+<li>Do not fetch, resolve, ping, or enrich extracted IOCs online by default.</li>
+<li>Keep static/Ghidra analysis network-isolated.</li>
+<li>Keep dynamic analysis disabled unless an explicit hook or sandbox backend is configured.</li>
+<li>Do not commit samples, generated reports containing real IOCs, API keys, or local secrets.</li>
+<li>Prefer local/offline analysis paths for malware workflows.</li>
+</ul>
+<h2 id="open-questions">Open Questions</h2>
+<ul>
+<li>Should the first UI step stay Jinja-only, or should a React analysis view be introduced early?</li>
+<li>Should the Cyber Ghidra static adapter run as a child Docker container, a service API, or a direct script inside the current Ghidra image?</li>
+<li>Should capa run in Phase 1 only, Phase 3 only, or be deduplicated through a shared result cache?</li>
+<li>What is the minimum accepted dynamic hook schema for external sandbox integration?</li>
+</ul>
+    </main>
+  </div>
+</body>
+</html>

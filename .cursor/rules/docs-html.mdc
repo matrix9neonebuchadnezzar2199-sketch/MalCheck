@@ -1,0 +1,13 @@
+---
+description: MalCheck repository documentation must be authored as HTML.
+globs: docs/**
+alwaysApply: false
+---
+
+# Docs Are HTML Canonical
+
+- Create and update repository documentation under `docs/` as self-contained `*.html` files.
+- Do not create new `docs/*.md` files unless the user explicitly asks for a temporary draft.
+- When replacing old Markdown docs, update repository links to point to the matching `.html` file.
+- Keep docs self-contained for offline use: no CDN scripts, remote fonts, remote images, or online assets.
+- Mermaid or diagram source may be embedded in HTML as `<pre class="mermaid">` when no offline renderer is available.

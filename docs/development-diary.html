@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MalCheck Development Diary - MalCheck Docs</title>
+  <style>
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel-2: #0b1018;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --ok: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --code: #010409;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, Helvetica, Arial, sans-serif;
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(22, 27, 34, 0.96);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  backdrop-filter: blur(12px);
+}
+.brand { max-width: 1120px; margin: 0 auto; font-weight: 700; }
+.brand span { color: var(--muted); font-weight: 500; margin-left: 8px; }
+.layout {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
+  padding: 24px 20px 56px;
+}
+.nav {
+  position: sticky;
+  top: 64px;
+  align-self: start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 12px;
+}
+.nav-title { color: var(--muted); font-size: 12px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .06em; }
+.nav a {
+  display: block;
+  color: var(--accent);
+  text-decoration: none;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 14px;
+}
+.nav a:hover { background: rgba(88,166,255,.12); text-decoration: none; }
+main {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--panel) 0, var(--bg) 180px);
+  padding: 28px;
+}
+h1, h2, h3, h4 { line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 2rem; margin-top: 0; padding-bottom: .35em; border-bottom: 1px solid var(--border); }
+h2 { font-size: 1.45rem; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.15rem; }
+p, ul, ol, table, pre, blockquote { margin-top: 0; margin-bottom: 1em; }
+a { color: var(--accent); }
+code {
+  background: rgba(110,118,129,.24);
+  border-radius: 6px;
+  padding: .15em .35em;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: .92em;
+}
+pre {
+  background: var(--code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: auto;
+  padding: 16px;
+}
+pre code { background: transparent; padding: 0; border-radius: 0; }
+pre.mermaid {
+  white-space: pre;
+  color: #d2a8ff;
+  position: relative;
+}
+pre.mermaid::before {
+  content: "mermaid";
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+blockquote {
+  border-left: 4px solid var(--border);
+  color: var(--muted);
+  padding: .2em 1em;
+  margin-left: 0;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+th, td { border: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+th { background: var(--panel-2); font-weight: 700; }
+tr:nth-child(even) td { background: rgba(110,118,129,.08); }
+hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
+.meta { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 1px 9px;
+  font-size: 12px;
+}
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; }
+  .nav { position: static; }
+  main { padding: 20px; }
+}
+</style>
+</head>
+<body>
+  <header class="topbar"><div class="brand">MalCheck Docs <span>HTML canonical documentation</span></div></header>
+  <div class="layout">
+    <aside class="nav">
+      <p class="nav-title">Documents</p>
+      <a href="architecture.html">Architecture</a>
+<a href="milestones.html">Milestones</a>
+<a href="implementation-rules.html">Implementation Rules</a>
+<a class="current" href="development-diary.html">Development Diary</a>
+<a href="feature-analysis.html">Feature Analysis</a>
+    </aside>
+    <main>
+      <div class="meta"><span class="badge">HTML canonical</span> Generated from the repository documentation source on 2026-06-02.</div>
+      <h1 id="malcheck-development-diary">MalCheck Development Diary</h1>
+<p>This diary records design decisions, investigation notes, and context that should survive across coding sessions. Keep entries factual and short enough to be useful.</p>
+<h2 id="2026-06-02-establishing-malcheck-as-the-integration-home">2026-06-02: Establishing MalCheck as the Integration Home</h2>
+<h3 id="context">Context</h3>
+<p>Two related projects were compared:</p>
+<ul>
+<li><code>MalCheck</code>: a Python malware analysis orchestrator with surface, dynamic, and static phases, JSON/HTML reports, USB/offline deployment, and a minimal FastAPI Web UI.</li>
+<li><code>cyber-ghidra-webui-main</code>: a richer Ghidra WebUI with FastAPI, React, static scanner plugins, unpacking, history, CFG/call graph/xref views, and detailed <code>*_analysis.json</code>.</li>
+</ul>
+<p>The GitHub repository <code>matrix9neonebuchadnezzar2199-sketch/MalCheck</code> was created as the intended storage location. At the time of the comparison, the remote repository appeared empty, while the local <code>F:\Cursor\MalCheck</code> directory contained the working project.</p>
+<h3 id="findings">Findings</h3>
+<p>MalCheck strengths:</p>
+<ul>
+<li>Clear <code>surface -&gt; dynamic -&gt; static -&gt; report</code> phase model.</li>
+<li>Phase-level error isolation in <code>mau.phase_router</code>.</li>
+<li>JSON and HTML report generation.</li>
+<li>USB/offline deployment workflow.</li>
+<li>Existing YARA/capa-oriented surface analysis.</li>
+<li>Dynamic phase has a hook point via <code>MAU_DYNAMIC_HOOK</code>.</li>
+</ul>
+<p>Cyber Ghidra strengths:</p>
+<ul>
+<li>Rich Ghidra output with per-function decompile data.</li>
+<li>CFG, call graph, xrefs, line-address map, suspicious API extraction.</li>
+<li>MIME-routed static scanner plugin architecture.</li>
+<li>Upload routing, archive handling, static-only path for documents/APK/PDF/Office.</li>
+<li>React UI patterns for reverse engineering workflows.</li>
+</ul>
+<p>Shared ground:</p>
+<ul>
+<li>Python/FastAPI/Docker/Ghidra.</li>
+<li>Local-first malware analysis.</li>
+<li>Network-isolated Ghidra/static analysis.</li>
+<li>JSON outputs suitable for aggregation.</li>
+</ul>
+<p>Main gaps:</p>
+<ul>
+<li>Dynamic analysis is not complete in either project.</li>
+<li>Ghidra output schemas are incompatible.</li>
+<li>UI depth differs significantly: MalCheck UI is minimal; Cyber Ghidra UI is analyst-focused.</li>
+<li>Docker security models differ: MalCheck uses Docker socket orchestration; Cyber Ghidra uses compose services and a network-isolated worker.</li>
+</ul>
+<h3 id="decision">Decision</h3>
+<p>Use MalCheck as the parent project and integration home.</p>
+<p>Reasoning:</p>
+<ul>
+<li>MalCheck already expresses the product goal: unified malware analysis across phases.</li>
+<li>Its report generator and USB/offline workflow should not be rebuilt from scratch.</li>
+<li>Cyber Ghidra can be integrated as a static analysis and UI capability provider.</li>
+<li>A report-schema-first migration reduces the risk of merging two Ghidra pipelines blindly.</li>
+</ul>
+<h3 id="architecture-direction">Architecture Direction</h3>
+<p>The first stable target is:</p>
+<pre><code class="language-text">MalCheck CLI/Web
+  -&gt; phase_router
+      -&gt; Phase 1 surface analysis
+      -&gt; Phase 2 dynamic hook or skipped/not_implemented
+      -&gt; Phase 3 Cyber Ghidra-compatible static analysis
+  -&gt; unified JSON/HTML report
+</code></pre>
+<p>The report schema is the stable contract. Tool-specific outputs can be nested, but UI and reports should read normalized fields.</p>
+<h3 id="implementation-order">Implementation Order</h3>
+<ol>
+<li>Add foundation documents.</li>
+<li>Consolidate surface analysis and scanner results.</li>
+<li>Upgrade static analysis output to Cyber Ghidra-compatible JSON.</li>
+<li>Improve report and minimal Web UI.</li>
+<li>Formalize dynamic hook JSON.</li>
+<li>Add optional sandbox integration later.</li>
+<li>Preserve USB/offline packaging.</li>
+</ol>
+<h3 id="non-goals-for-the-next-slice">Non-Goals for the Next Slice</h3>
+<ul>
+<li>Do not implement CAPE/VM dynamic analysis yet.</li>
+<li>Do not port the entire Cyber Ghidra React UI immediately.</li>
+<li>Do not run two independent Ghidra pipelines in parallel.</li>
+<li>Do not add online IOC lookups.</li>
+<li>Do not change default dynamic analysis from disabled to enabled.</li>
+</ul>
+<h3 id="safety-notes">Safety Notes</h3>
+<p>MalCheck handles malware samples and extracted indicators. Future code should treat all sample-derived text as hostile data. Extracted URLs, IPs, hashes, registry keys, and mutexes must not trigger online lookup by default.</p>
+<p>Ghidra/static analysis should remain network-isolated. Dynamic analysis requires an explicit lab backend and should stay opt-in.</p>
+<h3 id="files-created-in-this-foundation-pass">Files Created in This Foundation Pass</h3>
+<ul>
+<li><code>docs/architecture.html</code>: target architecture and integration contracts.</li>
+<li><code>docs/milestones.html</code>: milestone roadmap and acceptance criteria.</li>
+<li><code>docs/implementation-rules.html</code>: coding, safety, testing, and documentation rules.</li>
+<li><code>docs/development-diary.html</code>: this diary.</li>
+<li><code>AGENTS.md</code>: short operational guidance for future agents.</li>
+</ul>
+<h3 id="next-recommended-work">Next Recommended Work</h3>
+<p>Start with Milestone 1 from <code>docs/milestones.html</code>: add a stable <code>phase1_surface.scanner_results</code> shape and decide how to adapt Cyber Ghidra scanner output without duplicating expensive YARA/capa scans.</p>
+<h2 id="2026-06-02-milestone-1-slice-1-surface-scanner_results-baseline">2026-06-02: Milestone 1 Slice 1 - Surface scanner_results baseline</h2>
+<h3 id="what-changed">What changed</h3>
+<p>Implemented the first coding slice for Milestone 1:</p>
+<ul>
+<li>Added <code>scanner_results</code> and <code>overall_risk</code> to the Phase 1 output in <code>scripts/remnux/analyze.py</code>.</li>
+<li>Normalized baseline scanner entries for <code>die</code>, <code>yara</code>, <code>capa</code>, and <code>entropy</code>.</li>
+<li>Kept legacy fields (<code>yara_matches</code>, <code>capa_matches</code>, <code>packer</code>, <code>mitre</code>, <code>hashes</code>, etc.) unchanged for compatibility.</li>
+<li>Extended verdict calculation in <code>mau/report_generator.py</code> to read <code>scanner_results</code> when available, while preserving fallback to legacy fields.</li>
+<li>Added test coverage for <code>scanner_results</code> output and verdict scoring from scanner results.</li>
+</ul>
+<h3 id="why-this-slice">Why this slice</h3>
+<p>The goal is to introduce a stable scanner result shape without breaking existing report generation or tests. This provides a migration anchor for future Cyber Ghidra scanner adapter work.</p>
+<h3 id="verification">Verification</h3>
+<ul>
+<li><code>pytest tests -v</code> passed locally (9 passed).</li>
+</ul>
+<h3 id="notes">Notes</h3>
+<ul>
+<li>Risk scoring is currently heuristic and additive. If both <code>scanner_results</code> and legacy lists are present, scoring logic avoids double-counting by preferring scanner-derived counts.</li>
+<li>Next slice should define a stricter scanner result schema contract in code comments or helper types.</li>
+</ul>
+<h2 id="2026-06-02-milestone-1-slice-2-scanner-schema-normalization-helpers">2026-06-02: Milestone 1 Slice 2 - Scanner schema normalization helpers</h2>
+<h3 id="what-changed_1">What changed</h3>
+<ul>
+<li>Added <code>mau/surface_schema.py</code> with:</li>
+<li><code>normalize_scanner_results()</code></li>
+<li><code>count_findings()</code></li>
+<li><code>overall_risk()</code></li>
+<li>Updated <code>mau/report_generator.py</code> to use normalized scanner results for verdict scoring.</li>
+<li>Added <code>tests/test_surface_schema.py</code> to lock normalization and counting behavior.</li>
+</ul>
+<h3 id="why-this-slice_1">Why this slice</h3>
+<p><code>scanner_results</code> is now part of the migration contract, but early adapters may emit inconsistent types. Normalizing once in a shared helper reduces defensive code spread and makes future adapter integration easier.</p>
+<h3 id="verification_1">Verification</h3>
+<ul>
+<li><code>pytest tests -v</code> passed locally (11 passed).</li>
+</ul>
+<h2 id="2026-06-02-dynamic-slice-hook-output-normalization-and-tests">2026-06-02: Dynamic slice - hook output normalization and tests</h2>
+<h3 id="what-changed_2">What changed</h3>
+<ul>
+<li>Added <code>_normalize_dynamic_result()</code> in <code>mau/dynamic_analyzer.py</code>.</li>
+<li>Dynamic hook output is now normalized into a consistent dict shape with:</li>
+<li><code>status</code></li>
+<li><code>sample</code></li>
+<li><code>timeout_sec</code></li>
+<li><code>timestamp</code></li>
+<li><code>error</code> when failed/error status is reported</li>
+<li>Added <code>tests/test_dynamic_analyzer.py</code> covering:</li>
+<li>dynamic disabled (<code>skipped</code>)</li>
+<li>dynamic enabled without hook (<code>not_implemented</code>)</li>
+<li>hook success normalization</li>
+<li>hook failure path (<code>DynamicError</code>)</li>
+</ul>
+<h3 id="why-this-slice_2">Why this slice</h3>
+<p>Phase 2 is still hook-first. Normalizing payloads now reduces future breakage when integrating CAPE/VM outputs and keeps report/UI code from handling many ad-hoc dynamic formats.</p>
+<h3 id="verification_2">Verification</h3>
+<ul>
+<li><code>pytest tests -v</code> passed locally (15 passed).</li>
+</ul>
+<h2 id="2026-06-02-readme-redesign-for-product-grade-presentation">2026-06-02: README redesign for product-grade presentation</h2>
+<h3 id="what-changed_3">What changed</h3>
+<ul>
+<li>Rewrote <code>README.md</code> as a product-facing document.</li>
+<li>Added premium badge/tag section (runtime, language, stack, status, output).</li>
+<li>Added clear value proposition and product positioning.</li>
+<li>Added structured sections for:</li>
+<li>core features</li>
+<li>quick start (local + offline)</li>
+<li>Ghidra image build</li>
+<li>configuration</li>
+<li>testing</li>
+<li>OPSEC/security boundaries</li>
+<li>repository map</li>
+<li>roadmap snapshot</li>
+<li>Added direct links to architecture/milestones/rules/diary docs.</li>
+</ul>
+<h3 id="why-this-slice_3">Why this slice</h3>
+<p>The previous README was functionally correct but minimal. The new README is intended for repository landing quality: clearer first impression, better onboarding flow, and stronger guidance for both users and contributors.</p>
+<h2 id="2026-06-02-readme-language-switch-to-japanese">2026-06-02: README language switch to Japanese</h2>
+<h3 id="what-changed_4">What changed</h3>
+<ul>
+<li>Reworked <code>README.md</code> text into Japanese while preserving the premium layout, badges, and section structure.</li>
+<li>Kept technical keywords, command examples, and schema keys unchanged where exact notation is required.</li>
+</ul>
+<h3 id="why-this-slice_4">Why this slice</h3>
+<p>Primary project communication is currently Japanese-first, and repository landing text should match the expected reader language.</p>
+<h3 id="notes_1">Notes</h3>
+<ul>
+<li>Legacy fields are still supported in verdict scoring (<code>yara_matches</code> and <code>capa_matches</code>) for backward compatibility.</li>
+<li>A future slice should introduce typed models for phase outputs and apply normalization in one place before report generation.</li>
+</ul>
+<h2 id="2026-06-02-milestone-1-slice-3-report-schema-version-and-phase-status">2026-06-02: Milestone 1 Slice 3 - Report schema version and phase status</h2>
+<h3 id="what-changed_5">What changed</h3>
+<ul>
+<li>Added <code>REPORT_SCHEMA_VERSION = "2.0"</code> in <code>mau/report_generator.py</code>.</li>
+<li>Added <code>meta.schema_version</code> to generated reports.</li>
+<li>Added a <code>phase_status</code> block with normalized statuses for <code>surface</code>, <code>dynamic</code>, and <code>static</code>.</li>
+<li>Added <code>_phase_status()</code> helper to derive status from explicit phase fields or error payloads.</li>
+<li>Updated tests to assert schema version and phase status output.</li>
+</ul>
+<h3 id="why-this-slice_5">Why this slice</h3>
+<p>As integration grows, report consumers need a stable schema signal and explicit phase health. This prevents UI/report code from guessing whether a phase was skipped, not implemented, or failed.</p>
+<h3 id="verification_3">Verification</h3>
+<ul>
+<li><code>pytest tests -v</code> passed locally (11 passed).</li>
+</ul>
+<h2 id="2026-06-02-launch-and-web-ui-verification-docker-local">2026-06-02: Launch and Web UI verification (Docker + local)</h2>
+<h3 id="what-changed_6">What changed</h3>
+<ul>
+<li>Fixed a runtime bug in <code>web_ui/app.py</code>: the index route used the legacy
+  <code>TemplateResponse(name, context)</code> signature, which fails on current
+  Starlette (1.2.x) where the first positional argument is <code>request</code>. The
+  symptom was <code>AttributeError: 'dict' object has no attribute 'split'</code> and a
+  500 on <code>GET /</code>. Switched to <code>TemplateResponse(request, name, context)</code>.</li>
+<li>Added <code>results/reports/*</code> (keep <code>.gitkeep</code>) to <code>.gitignore</code> so runtime
+  report artifacts stop polluting <code>git status</code>.</li>
+</ul>
+<h3 id="verification_4">Verification</h3>
+<ul>
+<li>Local smoke (uvicorn): <code>GET /</code> -&gt; 200, <code>GET /health</code> -&gt; <code>{"status":"ok"}</code>.</li>
+<li>Docker stack (<code>docker compose up -d --build</code>): <code>mau-web</code>, <code>orchestrator</code>,
+  <code>surface-analyzer</code> all Up. Web UI reachable on <code>127.0.0.1:8080</code>.</li>
+<li>End-to-end analyze on a harmless text sample produced a full report:</li>
+<li>surface: completed (hashes, file_type, strings, urls/ips, entropy,
+    die/yara/capa scanners all <code>safe</code>).</li>
+<li>dynamic: skipped (disabled in config).</li>
+<li>static: failed gracefully (<code>Ghidra image not loaded: ghidra-headless:latest</code>),
+    confirming per-phase error isolation does not abort the run.</li>
+</ul>
+<h3 id="notes_2">Notes</h3>
+<ul>
+<li>Static phase needs <code>ghidra-headless:latest</code> built/loaded before it can run.</li>
+<li>On Docker Desktop/WSL2, bind mounts render as 9p with <code>path=F:\</code>; this is a
+  drvfs display artifact, not a misconfigured mount (<code>docker inspect</code> confirmed
+  the correct subdirectory sources).</li>
+</ul>
+    </main>
+  </div>
+</body>
+</html>

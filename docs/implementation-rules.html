@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MalCheck Implementation Rules - MalCheck Docs</title>
+  <style>
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel-2: #0b1018;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --ok: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --code: #010409;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, Helvetica, Arial, sans-serif;
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(22, 27, 34, 0.96);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  backdrop-filter: blur(12px);
+}
+.brand { max-width: 1120px; margin: 0 auto; font-weight: 700; }
+.brand span { color: var(--muted); font-weight: 500; margin-left: 8px; }
+.layout {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
+  padding: 24px 20px 56px;
+}
+.nav {
+  position: sticky;
+  top: 64px;
+  align-self: start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 12px;
+}
+.nav-title { color: var(--muted); font-size: 12px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .06em; }
+.nav a {
+  display: block;
+  color: var(--accent);
+  text-decoration: none;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 14px;
+}
+.nav a:hover { background: rgba(88,166,255,.12); text-decoration: none; }
+main {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--panel) 0, var(--bg) 180px);
+  padding: 28px;
+}
+h1, h2, h3, h4 { line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 2rem; margin-top: 0; padding-bottom: .35em; border-bottom: 1px solid var(--border); }
+h2 { font-size: 1.45rem; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.15rem; }
+p, ul, ol, table, pre, blockquote { margin-top: 0; margin-bottom: 1em; }
+a { color: var(--accent); }
+code {
+  background: rgba(110,118,129,.24);
+  border-radius: 6px;
+  padding: .15em .35em;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: .92em;
+}
+pre {
+  background: var(--code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: auto;
+  padding: 16px;
+}
+pre code { background: transparent; padding: 0; border-radius: 0; }
+pre.mermaid {
+  white-space: pre;
+  color: #d2a8ff;
+  position: relative;
+}
+pre.mermaid::before {
+  content: "mermaid";
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+blockquote {
+  border-left: 4px solid var(--border);
+  color: var(--muted);
+  padding: .2em 1em;
+  margin-left: 0;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+th, td { border: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+th { background: var(--panel-2); font-weight: 700; }
+tr:nth-child(even) td { background: rgba(110,118,129,.08); }
+hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
+.meta { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 1px 9px;
+  font-size: 12px;
+}
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; }
+  .nav { position: static; }
+  main { padding: 20px; }
+}
+</style>
+</head>
+<body>
+  <header class="topbar"><div class="brand">MalCheck Docs <span>HTML canonical documentation</span></div></header>
+  <div class="layout">
+    <aside class="nav">
+      <p class="nav-title">Documents</p>
+      <a href="architecture.html">Architecture</a>
+<a href="milestones.html">Milestones</a>
+<a class="current" href="implementation-rules.html">Implementation Rules</a>
+<a href="development-diary.html">Development Diary</a>
+<a href="feature-analysis.html">Feature Analysis</a>
+    </aside>
+    <main>
+      <div class="meta"><span class="badge">HTML canonical</span> Generated from the repository documentation source on 2026-06-02.</div>
+      <h1 id="malcheck-implementation-rules">MalCheck Implementation Rules</h1>
+<p>Last updated: 2026-06-02</p>
+<p>These rules are the working contract for future coding sessions. They are intentionally stricter than normal application rules because MalCheck handles malware samples, extracted indicators, generated reports, Docker control, and offline deployment artifacts.</p>
+<h2 id="core-principles">Core Principles</h2>
+<ol>
+<li>
+<p>Keep changes incremental.
+   Each change should improve one phase, one adapter, or one report contract at a time.</p>
+</li>
+<li>
+<p>Preserve phase isolation.
+   Surface, dynamic, and static phases may fail independently. A phase failure should become structured report data, not a whole-pipeline crash, unless report generation itself cannot proceed.</p>
+</li>
+<li>
+<p>Treat samples and extracted artifacts as hostile.
+   Never trust file names, extracted strings, archive paths, Ghidra output, YARA metadata, capa text, or dynamic logs.</p>
+</li>
+<li>
+<p>Prefer local/offline analysis.
+   Do not add online enrichment, URL fetching, DNS lookup, VirusTotal lookup, or reputation queries unless explicitly designed as an opt-in feature.</p>
+</li>
+<li>
+<p>Keep the report schema stable.
+   UI, HTML reports, CLI output, and future integrations should consume normalized JSON rather than tool-specific temp files.</p>
+</li>
+</ol>
+<h2 id="repository-boundaries">Repository Boundaries</h2>
+<h3 id="always-do">Always Do</h3>
+<ul>
+<li>Keep <code>mau.phase_router.run_pipeline()</code> as the main orchestration entry point.</li>
+<li>Add tests for new behavior under <code>tests/</code>.</li>
+<li>Update docs when changing phase output, configuration, or operational assumptions.</li>
+<li>Return structured error payloads for phase failures.</li>
+<li>Keep Ghidra/static analysis network-isolated.</li>
+<li>Keep generated reports, samples, PCAPs, screenshots, and real IOC-heavy artifacts out of git.</li>
+</ul>
+<h3 id="ask-first">Ask First</h3>
+<ul>
+<li>Adding a new external service or online lookup.</li>
+<li>Changing Docker socket usage or privilege model.</li>
+<li>Changing default dynamic analysis behavior from disabled to enabled.</li>
+<li>Replacing the Web UI stack.</li>
+<li>Removing USB/offline deployment support.</li>
+<li>Changing the top-level report shape in a breaking way.</li>
+</ul>
+<h3 id="never-do">Never Do</h3>
+<ul>
+<li>Do not commit malware samples or unpacked payloads.</li>
+<li>Do not commit API keys, tokens, <code>.env</code> runtime files, or analyst-local paths.</li>
+<li>Do not fetch, ping, resolve, or enrich extracted IOCs by default.</li>
+<li>Do not run a sample outside an intended isolated analysis environment.</li>
+<li>Do not make Ghidra/static containers network-enabled for convenience.</li>
+<li>Do not bury phase errors in logs only; reports must show failure status.</li>
+</ul>
+<h2 id="phase-output-rules">Phase Output Rules</h2>
+<p>Every phase result should be a JSON-serializable dictionary.</p>
+<p>Required status patterns:</p>
+<ul>
+<li>Successful phase: include normal result fields and omit <code>error</code>, or set <code>error</code> to <code>null</code>.</li>
+<li>Skipped phase: include <code>status: "skipped"</code> and <code>reason</code>.</li>
+<li>Planned but unavailable phase: include <code>status: "not_implemented"</code> and <code>reason</code>.</li>
+<li>Failed phase: include <code>error: true</code>, <code>type</code>, <code>message</code>, and optional <code>detail</code>.</li>
+</ul>
+<p>Do not expose unbounded logs or huge tool output directly in the top-level report. Store summaries in report fields and keep large raw artifacts as files with explicit paths if needed.</p>
+<h2 id="surface-analysis-rules">Surface Analysis Rules</h2>
+<p>Surface analysis should be fast and robust.</p>
+<p>Allowed:</p>
+<ul>
+<li>Hashing.</li>
+<li>File type detection.</li>
+<li>ASCII/Unicode string sampling.</li>
+<li>URL/IP/email extraction as inert strings.</li>
+<li>Entropy and packer heuristics.</li>
+<li>YARA and capa execution when local rules/tools are available.</li>
+<li>MIME-specific scanner adapters.</li>
+</ul>
+<p>Avoid:</p>
+<ul>
+<li>Online IOC enrichment.</li>
+<li>Large unbounded string dumps.</li>
+<li>Treating scanner failure as pipeline failure.</li>
+<li>Running the same expensive scanner twice without caching or deduplication.</li>
+</ul>
+<h2 id="static-analysis-rules">Static Analysis Rules</h2>
+<p>Static analysis is allowed to be slower and deeper, but must remain isolated.</p>
+<p>Required:</p>
+<ul>
+<li>Ghidra container runs with no external network.</li>
+<li>Ghidra timeouts are explicit.</li>
+<li>Ghidra image missing is reported as a structured static phase error.</li>
+<li>Jython scripts must remain compatible with Ghidra's script runtime. Avoid Python 3-only syntax in Ghidra post scripts unless the target runtime is confirmed.</li>
+<li>Rich Cyber Ghidra-style output should be normalized under <code>phase3_static.analysis_json</code>.</li>
+</ul>
+<p>Avoid:</p>
+<ul>
+<li>Parallel Ghidra pipelines producing conflicting results.</li>
+<li>Replacing legacy fields without a migration period.</li>
+<li>Raising exceptions for per-function decompile failures when the overall program can still be summarized.</li>
+</ul>
+<h2 id="dynamic-analysis-rules">Dynamic Analysis Rules</h2>
+<p>Dynamic analysis is disabled by default until a lab backend is configured.</p>
+<p>Initial implementation:</p>
+<ul>
+<li><code>phases.dynamic.enabled: false</code> returns <code>status: "skipped"</code>.</li>
+<li><code>phases.dynamic.enabled: true</code> with no hook returns <code>status: "not_implemented"</code>.</li>
+<li><code>MAU_DYNAMIC_HOOK</code> must print one JSON object to stdout.</li>
+<li>Hook failure becomes structured phase error.</li>
+</ul>
+<p>Future sandbox integration:</p>
+<ul>
+<li>Prefer CAPEv2 API before building a custom VM controller.</li>
+<li>Require explicit configuration for sandbox endpoint, timeout, and network assumptions.</li>
+<li>Do not allow uncontrolled outbound network from MalCheck itself.</li>
+<li>Normalize sandbox results into network, processes, filesystem, registry, dropped files, screenshots, and artifacts.</li>
+</ul>
+<h2 id="report-and-ui-rules">Report and UI Rules</h2>
+<ul>
+<li>Add new phase data to JSON first, then render it in HTML/UI.</li>
+<li>Keep HTML report readable even if one phase is skipped or failed.</li>
+<li>Escape rendered text. Do not render tool output as trusted HTML.</li>
+<li>Summarize large arrays and logs.</li>
+<li>Keep verdict reasons evidence-based and cite the phase that contributed them.</li>
+<li>Preserve machine-readable JSON as the source of truth.</li>
+</ul>
+<h2 id="docker-and-deployment-rules">Docker and Deployment Rules</h2>
+<ul>
+<li>Default Docker Compose should work without REMnux.</li>
+<li>REMnux and full sandbox features are optional profiles or alternate compose files.</li>
+<li>USB/offline deployment remains a first-class workflow.</li>
+<li>Do not assume internet on the analysis machine.</li>
+<li>Do not add dependencies that require runtime downloads in offline mode unless packaging scripts include them.</li>
+<li>Document image names, required tar files, and expected build inputs.</li>
+</ul>
+<h2 id="testing-rules">Testing Rules</h2>
+<p>Minimum test expectations by change type:</p>
+<ul>
+<li>Config change: config load/merge tests.</li>
+<li>Surface phase change: unit test with mocked Docker or local fixture.</li>
+<li>Static phase change: normalization tests and missing-image behavior.</li>
+<li>Dynamic phase change: disabled, enabled-without-hook, hook success, hook failure tests.</li>
+<li>Report change: JSON and HTML generation tests.</li>
+<li>Web UI change: FastAPI TestClient tests for health, upload validation, and error path.</li>
+</ul>
+<p>Default command:</p>
+<pre><code class="language-text">pytest tests -v
+</code></pre>
+<p>Run Docker/Ghidra smoke tests manually when a change touches container execution.</p>
+<h2 id="documentation-rules">Documentation Rules</h2>
+<p>Update documentation in the same change when:</p>
+<ul>
+<li>A phase output shape changes.</li>
+<li>A config key is added, removed, or changes default.</li>
+<li>A new Docker image or external tool becomes required.</li>
+<li>Dynamic analysis behavior changes.</li>
+<li>Offline packaging steps change.</li>
+</ul>
+<p>Use:</p>
+<ul>
+<li><code>docs/architecture.html</code> for design and contracts.</li>
+<li><code>docs/milestones.html</code> for roadmap and acceptance criteria.</li>
+<li><code>docs/implementation-rules.html</code> for coding and safety rules.</li>
+<li><code>docs/development-diary.html</code> for dated decisions and investigation notes.</li>
+</ul>
+<h2 id="opsec-notes">OPSEC Notes</h2>
+<p>Extracted IOCs are data, not instructions. If future docs or reports include live-looking URLs, domains, IPs, hashes, registry keys, or mutexes, keep them inert and do not perform lookups from the agent or application by default. Defanging should be an explicit reporting choice, not an implicit transformation that changes evidence.</p>
+    </main>
+  </div>
+</body>
+</html>

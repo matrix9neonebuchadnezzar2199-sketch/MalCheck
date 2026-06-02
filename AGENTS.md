@@ -12,10 +12,10 @@ surface -> dynamic -> static -> report
 
 Read these docs before non-trivial changes:
 
-- `docs/architecture.md` for integration direction and report contract.
-- `docs/milestones.md` for implementation order.
-- `docs/implementation-rules.md` for safety, testing, and phase-output rules.
-- `docs/development-diary.md` for dated decisions.
+- `docs/architecture.html` for integration direction and report contract.
+- `docs/milestones.html` for implementation order.
+- `docs/implementation-rules.html` for safety, testing, and phase-output rules.
+- `docs/development-diary.html` for dated decisions.
 
 ## Non-Discoverable Constraints
 
@@ -24,6 +24,7 @@ Read these docs before non-trivial changes:
 - The unified report JSON is the product contract. Normalize phase outputs before building UI around them.
 - Preserve USB/offline deployment as a first-class workflow.
 - Treat sample-derived text and extracted IOCs as hostile data. Do not perform online lookups by default.
+- Repository documentation under `docs/` is HTML-canonical. Create and update `docs/*.html`, not Markdown files, unless explicitly asked to create a transient draft.
 
 ## Commands
 

@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MalCheck Development Milestones - MalCheck Docs</title>
+  <style>
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel-2: #0b1018;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --ok: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --code: #010409;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, Helvetica, Arial, sans-serif;
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(22, 27, 34, 0.96);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  backdrop-filter: blur(12px);
+}
+.brand { max-width: 1120px; margin: 0 auto; font-weight: 700; }
+.brand span { color: var(--muted); font-weight: 500; margin-left: 8px; }
+.layout {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
+  padding: 24px 20px 56px;
+}
+.nav {
+  position: sticky;
+  top: 64px;
+  align-self: start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 12px;
+}
+.nav-title { color: var(--muted); font-size: 12px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .06em; }
+.nav a {
+  display: block;
+  color: var(--accent);
+  text-decoration: none;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 14px;
+}
+.nav a:hover { background: rgba(88,166,255,.12); text-decoration: none; }
+main {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--panel) 0, var(--bg) 180px);
+  padding: 28px;
+}
+h1, h2, h3, h4 { line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 2rem; margin-top: 0; padding-bottom: .35em; border-bottom: 1px solid var(--border); }
+h2 { font-size: 1.45rem; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.15rem; }
+p, ul, ol, table, pre, blockquote { margin-top: 0; margin-bottom: 1em; }
+a { color: var(--accent); }
+code {
+  background: rgba(110,118,129,.24);
+  border-radius: 6px;
+  padding: .15em .35em;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: .92em;
+}
+pre {
+  background: var(--code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: auto;
+  padding: 16px;
+}
+pre code { background: transparent; padding: 0; border-radius: 0; }
+pre.mermaid {
+  white-space: pre;
+  color: #d2a8ff;
+  position: relative;
+}
+pre.mermaid::before {
+  content: "mermaid";
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+blockquote {
+  border-left: 4px solid var(--border);
+  color: var(--muted);
+  padding: .2em 1em;
+  margin-left: 0;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+th, td { border: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+th { background: var(--panel-2); font-weight: 700; }
+tr:nth-child(even) td { background: rgba(110,118,129,.08); }
+hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
+.meta { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 1px 9px;
+  font-size: 12px;
+}
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; }
+  .nav { position: static; }
+  main { padding: 20px; }
+}
+</style>
+</head>
+<body>
+  <header class="topbar"><div class="brand">MalCheck Docs <span>HTML canonical documentation</span></div></header>
+  <div class="layout">
+    <aside class="nav">
+      <p class="nav-title">Documents</p>
+      <a href="architecture.html">Architecture</a>
+<a class="current" href="milestones.html">Milestones</a>
+<a href="implementation-rules.html">Implementation Rules</a>
+<a href="development-diary.html">Development Diary</a>
+<a href="feature-analysis.html">Feature Analysis</a>
+    </aside>
+    <main>
+      <div class="meta"><span class="badge">HTML canonical</span> Generated from the repository documentation source on 2026-06-02.</div>
+      <h1 id="malcheck-development-milestones">MalCheck Development Milestones</h1>
+<p>Last updated: 2026-06-02</p>
+<h2 id="strategy">Strategy</h2>
+<p>Build MalCheck as a phase-based malware analysis orchestrator. Do not attempt to complete surface, static, dynamic, UI, reporting, and USB distribution in one pass. Each milestone must leave the repository in a working, testable state.</p>
+<p>Priority order:</p>
+<ol>
+<li>Freeze the integration spec and report contract.</li>
+<li>Consolidate surface analysis.</li>
+<li>Upgrade static analysis with Cyber Ghidra-compatible output.</li>
+<li>Improve reports and UI.</li>
+<li>Formalize dynamic analysis hooks.</li>
+<li>Add optional sandbox integration.</li>
+<li>Harden packaging and offline deployment.</li>
+</ol>
+<h2 id="milestone-0-foundation-documents-and-contracts">Milestone 0: Foundation Documents and Contracts</h2>
+<p>Purpose: make the intended direction unambiguous before implementation begins.</p>
+<p>Scope:</p>
+<ul>
+<li>Architecture: <code>docs/architecture.html</code>.</li>
+<li>Milestones: <code>docs/milestones.html</code>.</li>
+<li>Implementation rules: <code>docs/implementation-rules.html</code>.</li>
+<li>Development diary: <code>docs/development-diary.html</code>.</li>
+<li>Agent guidance: <code>AGENTS.md</code>.</li>
+</ul>
+<p>Acceptance criteria:</p>
+<ul>
+<li>The target report schema is documented.</li>
+<li>The relationship between MalCheck and Cyber Ghidra WebUI is documented.</li>
+<li>Dynamic analysis is clearly marked as hook-first, not full sandbox-first.</li>
+<li>Safety boundaries for samples, IOCs, network isolation, and Docker are written down.</li>
+</ul>
+<p>Verification:</p>
+<ul>
+<li>Read the docs from a fresh session and confirm the next implementation slice is obvious.</li>
+<li>Run <code>pytest tests -v</code> to ensure documentation changes did not disturb the current package.</li>
+</ul>
+<h2 id="milestone-1-surface-analysis-consolidation">Milestone 1: Surface Analysis Consolidation</h2>
+<p>Purpose: make Phase 1 the reliable entry point for fast triage.</p>
+<p>Scope:</p>
+<ul>
+<li>Keep existing hash, file type, string sample, URL/IP, entropy, YARA, capa, and DIE behavior.</li>
+<li>Add a stable <code>scanner_results</code> list under <code>phase1_surface</code>.</li>
+<li>Design or implement an adapter for Cyber Ghidra scanner plugin results.</li>
+<li>Deduplicate overlapping YARA/capa output.</li>
+</ul>
+<p>Acceptance criteria:</p>
+<ul>
+<li><code>python -m mau.main &lt;sample&gt;</code> still produces JSON and HTML reports.</li>
+<li><code>phase1_surface</code> contains the legacy fields plus <code>scanner_results</code>.</li>
+<li>A single scanner failure is recorded but does not abort the pipeline.</li>
+<li>Tests cover success, scanner failure, and missing optional tool cases.</li>
+</ul>
+<p>Verification:</p>
+<ul>
+<li><code>pytest tests -v</code></li>
+<li>Manual CLI smoke with a benign local sample in <code>samples/</code>.</li>
+</ul>
+<p>Files likely touched:</p>
+<ul>
+<li><code>mau/surface_runner.py</code></li>
+<li><code>scripts/remnux/analyze.py</code></li>
+<li><code>mau/report_generator.py</code></li>
+<li><code>tests/</code></li>
+<li>Optional adapter module under <code>mau/</code></li>
+</ul>
+<h2 id="milestone-2-static-analysis-upgrade">Milestone 2: Static Analysis Upgrade</h2>
+<p>Purpose: replace MalCheck's simple Ghidra output with richer Cyber Ghidra-compatible static analysis.</p>
+<p>Scope:</p>
+<ul>
+<li>Introduce a <code>phase3_static.engine</code> field.</li>
+<li>Add <code>phase3_static.analysis_json</code> for rich Ghidra output.</li>
+<li>Preserve legacy <code>decompiled_c</code>, <code>functions</code>, and <code>metadata</code> compatibility during migration.</li>
+<li>Keep static analysis network-isolated.</li>
+</ul>
+<p>Acceptance criteria:</p>
+<ul>
+<li>Ghidra image missing still produces a structured <code>phase3_static.error</code> report.</li>
+<li>Ghidra success produces function-level analysis JSON.</li>
+<li>The report can summarize function count, imports, strings, suspicious APIs, and truncation status.</li>
+<li>Static analysis failures do not block report generation.</li>
+</ul>
+<p>Verification:</p>
+<ul>
+<li>Unit tests for static result normalization.</li>
+<li>Manual Ghidra smoke when the Ghidra image is available.</li>
+</ul>
+<p>Files likely touched:</p>
+<ul>
+<li><code>mau/static_analyzer.py</code></li>
+<li><code>build/ghidra-headless/scripts/</code></li>
+<li><code>scripts/ghidra/</code></li>
+<li><code>mau/report_generator.py</code></li>
+<li><code>tests/</code></li>
+</ul>
+<h2 id="milestone-3-report-schema-v2-and-html-improvements">Milestone 3: Report Schema v2 and HTML Improvements</h2>
+<p>Purpose: make the report useful for analysts and stable for future UI work.</p>
+<p>Scope:</p>
+<ul>
+<li>Add <code>meta.schema_version</code>.</li>
+<li>Normalize IOC aggregation from surface, static, and dynamic phases.</li>
+<li>Improve verdict reasons so they cite phase evidence.</li>
+<li>Show phase status clearly in HTML: completed, skipped, not implemented, failed.</li>
+<li>Add sections for Ghidra summary and dynamic status.</li>
+</ul>
+<p>Acceptance criteria:</p>
+<ul>
+<li>Existing reports remain readable.</li>
+<li>New reports include schema version and phase status.</li>
+<li>HTML report does not render raw unbounded JSON by default.</li>
+<li>Large phase payloads are summarized with links or collapsible sections.</li>
+</ul>
+<p>Verification:</p>
+<ul>
+<li><code>pytest tests/test_report_generator.py -v</code></li>
+<li>Manual HTML report review.</li>
+</ul>
+<p>Files likely touched:</p>
+<ul>
+<li><code>mau/report_generator.py</code></li>
+<li><code>mau/templates/report.html</code></li>
+<li><code>tests/test_report_generator.py</code></li>
+</ul>
+<h2 id="milestone-4-web-ui-baseline">Milestone 4: Web UI Baseline</h2>
+<p>Purpose: turn the current upload endpoint into a usable local analyst UI without rebuilding Cyber Ghidra's full React UI yet.</p>
+<p>Scope:</p>
+<ul>
+<li>Upload sample.</li>
+<li>Run pipeline.</li>
+<li>Show status/result links.</li>
+<li>List generated reports.</li>
+<li>Display verdict, hashes, phase status, and top findings.</li>
+</ul>
+<p>Acceptance criteria:</p>
+<ul>
+<li><code>http://127.0.0.1:8080</code> can upload and run a sample.</li>
+<li>The UI links to JSON and HTML report outputs.</li>
+<li>Errors are readable and do not expose internal stack traces by default.</li>
+<li>Filename sanitization and size limits are enforced.</li>
+</ul>
+<p>Verification:</p>
+<ul>
+<li>FastAPI TestClient tests for upload validation and health.</li>
+<li>Manual local upload smoke.</li>
+</ul>
+<p>Files likely touched:</p>
+<ul>
+<li><code>web_ui/app.py</code></li>
+<li><code>web_ui/templates_web/index.html</code></li>
+<li><code>tests/</code></li>
+</ul>
+<h2 id="milestone-5-dynamic-hook-contract">Milestone 5: Dynamic Hook Contract</h2>
+<p>Purpose: make Phase 2 integration-ready without pretending a sandbox exists.</p>
+<p>Scope:</p>
+<ul>
+<li>Define required and optional keys for <code>MAU_DYNAMIC_HOOK</code> output.</li>
+<li>Add validation/normalization for hook output.</li>
+<li>Add test fixtures for skipped, not implemented, hook success, and hook failure.</li>
+<li>Show dynamic status in reports.</li>
+</ul>
+<p>Acceptance criteria:</p>
+<ul>
+<li>Dynamic disabled returns <code>status=skipped</code>.</li>
+<li>Dynamic enabled with no hook returns <code>status=not_implemented</code>.</li>
+<li>Hook success returns normalized dynamic JSON.</li>
+<li>Hook failure is captured as <code>error=true</code> and report generation continues.</li>
+</ul>
+<p>Verification:</p>
+<ul>
+<li><code>pytest tests -v</code></li>
+<li>Mock hook script integration test.</li>
+</ul>
+<p>Files likely touched:</p>
+<ul>
+<li><code>mau/dynamic_analyzer.py</code></li>
+<li><code>mau/report_generator.py</code></li>
+<li><code>tests/</code></li>
+<li><code>docs/architecture.html</code></li>
+</ul>
+<h2 id="milestone-6-optional-cape-or-vm-integration">Milestone 6: Optional CAPE or VM Integration</h2>
+<p>Purpose: add real dynamic analysis through an external sandbox backend.</p>
+<p>Preferred first backend: CAPEv2 API.</p>
+<p>Scope:</p>
+<ul>
+<li>Submit sample to sandbox.</li>
+<li>Poll task status.</li>
+<li>Fetch behavioral report.</li>
+<li>Normalize network, process, registry, filesystem, and dropped-file summaries.</li>
+<li>Keep lab network assumptions explicit.</li>
+</ul>
+<p>Acceptance criteria:</p>
+<ul>
+<li>Sandbox integration is disabled by default.</li>
+<li>CAPE API failures are recorded without aborting surface/static phases.</li>
+<li>No live IOC lookup or uncontrolled outbound connection is performed by MalCheck itself.</li>
+<li>Dynamic output fits the Phase 2 contract from Milestone 5.</li>
+</ul>
+<p>Verification:</p>
+<ul>
+<li>Mock CAPE API tests.</li>
+<li>Manual lab-only smoke test.</li>
+</ul>
+<h2 id="milestone-7-offline-packaging-and-release-hygiene">Milestone 7: Offline Packaging and Release Hygiene</h2>
+<p>Purpose: preserve MalCheck's USB/offline strength as integrations grow.</p>
+<p>Scope:</p>
+<ul>
+<li>Update <code>make_usb.sh</code>, <code>deploy.sh</code>, and <code>deploy.bat</code>.</li>
+<li>Document required image tar files and expected sizes.</li>
+<li>Ensure Ghidra ZIP handling remains reproducible.</li>
+<li>Add release checklist.</li>
+</ul>
+<p>Acceptance criteria:</p>
+<ul>
+<li>Offline deployment docs match actual scripts.</li>
+<li>Missing optional images degrade gracefully.</li>
+<li>Sample files and real reports are never included in release artifacts.</li>
+</ul>
+<p>Verification:</p>
+<ul>
+<li>Dry-run packaging on a development machine.</li>
+<li>Manual deploy smoke in an isolated test environment.</li>
+</ul>
+<h2 id="backlog">Backlog</h2>
+<ul>
+<li>React-based deep analysis view adapted from Cyber Ghidra WebUI.</li>
+<li>Function-level LLM annotation.</li>
+<li>Diff view between two reports.</li>
+<li>Data xrefs and string/import caller tracing.</li>
+<li>Redis or task queue if local parallel jobs become necessary.</li>
+<li>Stronger Docker socket isolation.</li>
+<li>PDF export from HTML report.</li>
+</ul>
+<h2 id="definition-of-done">Definition of Done</h2>
+<p>For each milestone:</p>
+<ul>
+<li>Tests pass with <code>pytest tests -v</code>.</li>
+<li>Documentation is updated in the same change.</li>
+<li>Any new phase output is included in the report schema.</li>
+<li>Failure paths are represented in JSON rather than crashing the whole run.</li>
+<li>No sample binaries, generated report payloads with real IOCs, secrets, or local-only paths are committed.</li>
+</ul>
+    </main>
+  </div>
+</body>
+</html>
