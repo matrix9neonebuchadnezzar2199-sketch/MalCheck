@@ -152,6 +152,31 @@ The goal is to introduce a stable scanner result shape without breaking existing
 
 - `pytest tests -v` passed locally (11 passed).
 
+## 2026-06-02: Dynamic slice - hook output normalization and tests
+
+### What changed
+
+- Added `_normalize_dynamic_result()` in `mau/dynamic_analyzer.py`.
+- Dynamic hook output is now normalized into a consistent dict shape with:
+  - `status`
+  - `sample`
+  - `timeout_sec`
+  - `timestamp`
+  - `error` when failed/error status is reported
+- Added `tests/test_dynamic_analyzer.py` covering:
+  - dynamic disabled (`skipped`)
+  - dynamic enabled without hook (`not_implemented`)
+  - hook success normalization
+  - hook failure path (`DynamicError`)
+
+### Why this slice
+
+Phase 2 is still hook-first. Normalizing payloads now reduces future breakage when integrating CAPE/VM outputs and keeps report/UI code from handling many ad-hoc dynamic formats.
+
+### Verification
+
+- `pytest tests -v` passed locally (15 passed).
+
 ### Notes
 
 - Legacy fields are still supported in verdict scoring (`yara_matches` and `capa_matches`) for backward compatibility.

@@ -12,6 +12,30 @@ from mau.errors import DynamicError
 log = logging.getLogger(__name__)
 
 
+def _normalize_dynamic_result(payload: Any, sample_path: str, timeout_sec: int) -> dict[str, Any]:
+    now = datetime.now(timezone.utc).isoformat()
+    if not isinstance(payload, dict):
+        return {
+            "status": "error",
+            "error": True,
+            "reason": "dynamic hook output is not a JSON object",
+            "sample": sample_path,
+            "timeout_sec": timeout_sec,
+            "timestamp": now,
+        }
+    result = dict(payload)
+    status = str(result.get("status", "")).strip().lower()
+    if status not in ("completed", "failed", "skipped", "not_implemented", "error"):
+        status = "completed"
+    result["status"] = status
+    result.setdefault("sample", sample_path)
+    result.setdefault("timeout_sec", timeout_sec)
+    result.setdefault("timestamp", now)
+    if status in ("failed", "error"):
+        result.setdefault("error", True)
+    return result
+
+
 def run_dynamic_analysis(
     sample_path: str,
     *,
@@ -51,7 +75,8 @@ def run_dynamic_analysis(
                 )
             import json
 
-            return json.loads(proc.stdout or "{}")
+            data = json.loads(proc.stdout or "{}")
+            return _normalize_dynamic_result(data, sample_path, timeout_sec)
         except Exception as e:
             log.exception("Dynamic hook error")
             raise DynamicError("Dynamic hook execution failed", str(e)) from e
