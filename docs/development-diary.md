@@ -177,6 +177,28 @@ Phase 2 is still hook-first. Normalizing payloads now reduces future breakage wh
 
 - `pytest tests -v` passed locally (15 passed).
 
+## 2026-06-02: README redesign for product-grade presentation
+
+### What changed
+
+- Rewrote `README.md` as a product-facing document.
+- Added premium badge/tag section (runtime, language, stack, status, output).
+- Added clear value proposition and product positioning.
+- Added structured sections for:
+  - core features
+  - quick start (local + offline)
+  - Ghidra image build
+  - configuration
+  - testing
+  - OPSEC/security boundaries
+  - repository map
+  - roadmap snapshot
+- Added direct links to architecture/milestones/rules/diary docs.
+
+### Why this slice
+
+The previous README was functionally correct but minimal. The new README is intended for repository landing quality: clearer first impression, better onboarding flow, and stronger guidance for both users and contributors.
+
 ### Notes
 
 - Legacy fields are still supported in verdict scoring (`yara_matches` and `capa_matches`) for backward compatibility.
