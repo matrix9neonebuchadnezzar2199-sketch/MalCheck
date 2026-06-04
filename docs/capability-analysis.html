@@ -161,7 +161,9 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
           <tr><td>フェーズオーケストレーション</td><td class="ok">✅</td><td><code>run_pipeline</code> / <code>run_pipeline_with_intake</code></td></tr>
           <tr><td>フェーズ失敗の分離</td><td class="ok">✅</td><td>1フェーズ失敗でもレポート生成継続</td></tr>
           <tr><td>Intake（ZIP/7z 解凍）</td><td class="ok">✅</td><td><code>mau/intake.py</code>、パスワード試行・ネスト上限</td></tr>
-          <tr><td>子ファイル fan-out</td><td class="ok">✅</td><td>展開葉ごとに surface / static / dynamic</td></tr>
+          <tr><td>子ファイル fan-out</td><td class="ok">✅</td><td>展開葉ごとに surface / unpack / static / dynamic</td></tr>
+          <tr><td>アンパック（Phase 1b）</td><td class="warn">⚠️</td><td><code>mau/unpack_stage.py</code> — パック疑い PE で UPX / unipacker（詳細は <a href="re-analysis-pipeline.html">RE Pipeline</a>）</td></tr>
+          <tr><td>耐解析レポート統合</td><td class="ok">✅</td><td><code>re_analysis</code>（表層 + Ghidra <code>decompile_insights</code>）</td></tr>
           <tr><td>親レポート集約 schema 2.1</td><td class="ok">✅</td><td><code>intake.children[]</code>、<code>malicious_findings</code>、verdict 昇格</td></tr>
           <tr><td>JSON + HTML レポート</td><td class="ok">✅</td><td><code>mau/report_generator.py</code></td></tr>
           <tr><td>ヒューリスティック verdict / score</td><td class="ok">✅</td><td>YARA / capa / 静的 suspicious API 等</td></tr>
@@ -179,9 +181,11 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
         rep[Report_2_1]
     end
     intake --> surface[Phase1]
+    surface --> unpack[Phase1b]
+    unpack --> static[Phase3]
     intake --> dynamic[Phase2]
-    intake --> static[Phase3]
     surface --> rep
+    unpack --> rep
     dynamic --> rep
     static --> rep</pre>
 
@@ -201,8 +205,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
           <tr><td>能力</td><td>capa JSON（インストール時）</td></tr>
           <tr><td>型別</td><td><strong>pefile</strong> — imports / sections / entropy / TLS / anti-debug imports</td></tr>
           <tr><td>耐解析</td><td>capa anti-analysis / anti-vm 要約（<code>capa_anti_analysis</code>）</td></tr>
-          <tr><td>難読化 strings</td><td>FLOSS（パック疑い PE、オプション）</td></tr>
-          <tr><td>アンパック</td><td>Phase 1b — UPX / unipacker（<code>mau/unpack_stage.py</code>）</td></tr>
+          <tr><td>難読化 strings</td><td>FLOSS（パック疑い PE、コンテナに導入時）</td></tr>
           <tr><td>型別</td><td><strong>oletools</strong> — VBA / oleid（Office）</td></tr>
           <tr><td>型別</td><td><strong>pdfid</strong> — <code>/JavaScript</code> 等キーワード</td></tr>
           <tr><td>正規化</td><td><code>scanner_results[]</code> + <code>overall_risk</code></td></tr>
@@ -321,7 +324,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
           <tr><td>11</td><td><strong>CAPEv2 hook 実装</strong></td><td>動的</td><td>M5〜M6。<code>MAU_DYNAMIC_HOOK</code> 契約の先</td></tr>
           <tr><td>12</td><td><strong>ジョブキュー / 非同期解析</strong></td><td>横断</td><td>大容量・複数検体の運用</td></tr>
           <tr><td>13</td><td><strong>検体ライフサイクル</strong></td><td>横断</td><td>解析後削除・保持ポリシー（lab OPSEC）</td></tr>
-          <tr><td>14</td><td><strong>unipacker / パッカー展開前処理</strong></td><td>表層→静的</td><td>パック済み PE の到達率向上</td></tr>
+          <tr><td>14</td><td><strong>unipacker / パッカー展開前処理</strong></td><td>表層→静的</td><td>Phase 1b で部分対応済み（全パッカー非対応）</td></tr>
           <tr><td>15</td><td><strong>簡易 CFG ビュー（HTML のみ）</strong></td><td>静的</td><td><code>analysis_json</code> のサブセット表示</td></tr>
         </tbody>
       </table>
@@ -348,8 +351,8 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
       <h2 id="usage">6. この分析の使い方</h2>
       <ul>
         <li>実装タスク化: 高優先 #1（HTML 配信）または #2（IOC 拡充）からスライス化が現実的</li>
-        <li>仕様書 <code>仕様書.txt</code> との差分: VT API・FLOSS・ssdeep 等は仕様にあって未実装の項目が残る</li>
-        <li>関連: <a href="feature-analysis.html">Feature Analysis</a>（図・infected ZIP 詳細）、<a href="architecture.html">Architecture</a>（契約）</li>
+        <li>仕様書 <code>仕様書.txt</code> との差分: VT API・ssdeep・imphash 等は未実装。FLOSS / アンパックは ⚠️ 部分対応</li>
+        <li>関連: <a href="feature-analysis.html">Feature Analysis</a>、<a href="re-analysis-pipeline.html">RE Pipeline</a>、<a href="architecture.html">Architecture</a></li>
       </ul>
     </main>
   </div>
