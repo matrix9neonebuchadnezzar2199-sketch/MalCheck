@@ -16,6 +16,7 @@ samples/*
 samples/_intake/**
 results/reports/*
 !results/reports/.gitkeep
+results/unpack/**
 compose/.env.runtime
 .env
 *.log
