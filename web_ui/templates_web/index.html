@@ -187,6 +187,34 @@
       <span class="topic">reverse-engineering</span>
     </div>
 
+    <div class="box" id="history-box"{% if not recent_reports %} style="display:none"{% endif %}>
+      <div class="box-header">最近のレポート</div>
+      <div class="box-body">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="color:var(--fg-muted);text-align:left;">
+              <th style="padding:6px 8px;border-bottom:1px solid var(--border);">sample</th>
+              <th style="padding:6px 8px;border-bottom:1px solid var(--border);">verdict</th>
+              <th style="padding:6px 8px;border-bottom:1px solid var(--border);">links</th>
+            </tr>
+          </thead>
+          <tbody id="history-body">
+            {% for r in recent_reports %}
+            <tr>
+              <td style="padding:6px 8px;border-bottom:1px solid var(--border-muted);">{{ r.sample_name }}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid var(--border-muted);">{{ r.verdict_label or "-" }} ({{ r.verdict_score or 0 }})</td>
+              <td style="padding:6px 8px;border-bottom:1px solid var(--border-muted);">
+                <a href="{{ r.view_url }}">HTML</a> ·
+                <a href="{{ r.json_url }}">JSON</a> ·
+                <a href="/export/{{ r.base }}/csv">CSV</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="box">
       <div class="box-header">
         <svg height="16" viewBox="0 0 16 16" width="16" aria-hidden="true" fill="currentColor">
@@ -264,6 +292,26 @@
     const flash = document.getElementById("flash");
     const result = document.getElementById("result");
 
+    async function refreshHistory() {
+      try {
+        const r = await fetch("/api/reports");
+        const j = await r.json();
+        const body = document.getElementById("history-body");
+        const box = document.getElementById("history-box");
+        if (!body || !box) return;
+        const rows = j.reports || [];
+        if (!rows.length) return;
+        body.innerHTML = rows.map(row =>
+          `<tr><td style="padding:6px 8px;border-bottom:1px solid var(--border-muted);">${esc(row.sample_name)}</td>` +
+          `<td style="padding:6px 8px;border-bottom:1px solid var(--border-muted);">${esc(row.verdict_label || "-")} (${esc(row.verdict_score ?? 0)})</td>` +
+          `<td style="padding:6px 8px;border-bottom:1px solid var(--border-muted);">` +
+          `<a href="${esc(row.view_url)}">HTML</a> · <a href="${esc(row.json_url)}">JSON</a> · ` +
+          `<a href="/export/${esc(row.base)}/csv">CSV</a></td></tr>`
+        ).join("");
+        box.style.display = "block";
+      } catch (_) { /* ignore */ }
+    }
+
     form.onsubmit = async (ev) => {
       ev.preventDefault();
       flash.style.display = "none";
@@ -310,9 +358,19 @@
         }
 
         const links = [];
-        if (j.report_json) links.push(`<div>report (json): <code>${esc(j.report_json)}</code></div>`);
-        if (j.report_html) links.push(`<div>report (html): <code>${esc(j.report_html)}</code></div>`);
+        if (j.report_view_url) {
+          links.push(`<div><a href="${esc(j.report_view_url)}">レポートを開く (HTML)</a></div>`);
+        }
+        if (j.report_json_url) {
+          links.push(`<div><a href="${esc(j.report_json_url)}">JSON</a></div>`);
+        }
+        const ex = j.exports || {};
+        if (ex.csv) links.push(`<div><a href="${esc(ex.csv)}">CSV エクスポート</a></div>`);
+        if (ex.misp) links.push(`<div><a href="${esc(ex.misp)}">MISP JSON</a></div>`);
+        if (ex.stix) links.push(`<div><a href="${esc(ex.stix)}">STIX 2.1</a></div>`);
+        if (j.report_json) links.push(`<div class="hint">path: <code>${esc(j.report_json)}</code></div>`);
         document.getElementById("links").innerHTML = links.join("");
+        refreshHistory();
 
         document.getElementById("json").textContent = JSON.stringify(j, null, 2);
         result.style.display = "block";

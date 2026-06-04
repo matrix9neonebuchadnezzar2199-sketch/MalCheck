@@ -19,6 +19,7 @@ from mau.findings_extract import (
     extract_malicious_findings,
     score_from_surface,
 )
+from mau.report_export import write_exports
 
 log = logging.getLogger(__name__)
 
@@ -27,6 +28,25 @@ REPORT_SCHEMA_VERSION = "2.1"
 
 def _safe_name(name: str) -> str:
     return re.sub(r"[^\w.\-]+", "_", name)[:200] or "report"
+
+
+def _finalize_report_paths(
+    report: dict[str, Any],
+    out_dir: Path,
+    base: str,
+    json_path: Path,
+    html_path: Optional[Path],
+) -> None:
+    paths: dict[str, Optional[str]] = {
+        "json": str(json_path),
+        "html": str(html_path) if html_path else None,
+    }
+    if os.environ.get("MAU_EXPORT_REPORTS", "1") not in ("0", "false", "False"):
+        try:
+            paths.update(write_exports(report, out_dir, base))
+        except OSError as e:
+            log.warning("Export write failed: %s", e)
+    report["_paths"] = paths
 
 
 def _phase_status(payload: Any) -> str:
@@ -43,21 +63,38 @@ def _phase_status(payload: Any) -> str:
 def aggregate_iocs(surface: dict[str, Any], dynamic: dict[str, Any], static: dict[str, Any]) -> dict[str, Any]:
     urls: list[str] = []
     ips: list[str] = []
+    domains: list[str] = []
+    emails: list[str] = []
+    registry_keys: list[str] = []
+    mutexes: list[str] = []
     hashes: dict[str, str] = {}
     if isinstance(surface, dict):
         h = surface.get("hashes") or {}
         if isinstance(h, dict):
-            for k in ("md5", "sha1", "sha256"):
+            for k in ("md5", "sha1", "sha256", "ssdeep", "tlsh", "imphash"):
                 v = h.get(k)
                 if isinstance(v, str) and v:
                     hashes[k] = v
-        u = surface.get("urls")
-        if isinstance(u, list):
-            urls.extend(str(x) for x in u if x)
-        i = surface.get("ips")
-        if isinstance(i, list):
-            ips.extend(str(x) for x in i if x)
-    return {"hashes": hashes, "urls": sorted(set(urls)), "ips": sorted(set(ips))}
+        for src, dest in (
+            ("urls", urls),
+            ("ips", ips),
+            ("domains", domains),
+            ("emails", emails),
+            ("registry_keys", registry_keys),
+            ("mutexes", mutexes),
+        ):
+            vals = surface.get(src)
+            if isinstance(vals, list):
+                dest.extend(str(x) for x in vals if x)
+    return {
+        "hashes": hashes,
+        "urls": sorted(set(urls)),
+        "ips": sorted(set(ips)),
+        "domains": sorted(set(domains)),
+        "emails": sorted(set(emails)),
+        "registry_keys": sorted(set(registry_keys)),
+        "mutexes": sorted(set(mutexes)),
+    }
 
 
 def build_re_analysis(surface: dict[str, Any], static: dict[str, Any]) -> dict[str, Any]:
@@ -205,7 +242,7 @@ def generate_report(
         except Exception as e:
             raise ReportError(f"HTML render failed: {html_path}", str(e)) from e
 
-    report["_paths"] = {"json": str(json_path), "html": str(html_path) if html_path else None}
+    _finalize_report_paths(report, out_dir, base, json_path, html_path)
     return report
 
 
@@ -260,12 +297,20 @@ def generate_aggregated_report(
     if len(children) == 1:
         iocs = aggregate_iocs(primary_surface, primary_dynamic, primary_static)
     else:
-        iocs = {"hashes": {}, "urls": [], "ips": []}
+        iocs: dict[str, Any] = {
+            "hashes": {},
+            "urls": [],
+            "ips": [],
+            "domains": [],
+            "emails": [],
+            "registry_keys": [],
+            "mutexes": [],
+        }
         for ch in children:
             sub = aggregate_iocs(ch.get("phase1_surface") or {}, {}, {})
             iocs["hashes"].update(sub.get("hashes") or {})
-            iocs["urls"] = sorted(set(iocs["urls"]) | set(sub.get("urls") or []))
-            iocs["ips"] = sorted(set(iocs["ips"]) | set(sub.get("ips") or []))
+            for key in ("urls", "ips", "domains", "emails", "registry_keys", "mutexes"):
+                iocs[key] = sorted(set(iocs[key]) | set(sub.get(key) or []))
 
     ts = datetime.now(timezone.utc).isoformat()
     report: dict[str, Any] = {
@@ -322,7 +367,7 @@ def generate_aggregated_report(
     if html:
         html_path = out_dir / f"{base}.html"
         _render_html(report, html_path)
-    report["_paths"] = {"json": str(json_path), "html": str(html_path) if html_path else None}
+    _finalize_report_paths(report, out_dir, base, json_path, html_path)
     return report
 
 

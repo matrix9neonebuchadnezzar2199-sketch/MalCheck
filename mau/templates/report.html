@@ -121,6 +121,10 @@
     <tr><td>Hashes</td><td><pre>{{ report.iocs.hashes | tojson }}</pre></td></tr>
     <tr><td>URLs</td><td>{{ (report.iocs.urls or []) | join(', ') | e }}</td></tr>
     <tr><td>IPs</td><td>{{ (report.iocs.ips or []) | join(', ') | e }}</td></tr>
+    <tr><td>Domains</td><td>{{ (report.iocs.domains or []) | join(', ') | e }}</td></tr>
+    <tr><td>Emails</td><td>{{ (report.iocs.emails or []) | join(', ') | e }}</td></tr>
+    <tr><td>Registry</td><td>{{ (report.iocs.registry_keys or []) | join(', ') | e }}</td></tr>
+    <tr><td>Mutexes</td><td>{{ (report.iocs.mutexes or []) | join(', ') | e }}</td></tr>
   </table>
 
   {% set un = report.phase1b_unpack or {} %}

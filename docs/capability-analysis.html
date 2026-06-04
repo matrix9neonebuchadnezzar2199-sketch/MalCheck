@@ -166,8 +166,11 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
           <tr><td>耐解析レポート統合</td><td class="ok">✅</td><td><code>re_analysis</code>（表層 + Ghidra <code>decompile_insights</code>）</td></tr>
           <tr><td>親レポート集約 schema 2.1</td><td class="ok">✅</td><td><code>intake.children[]</code>、<code>malicious_findings</code>、verdict 昇格</td></tr>
           <tr><td>JSON + HTML レポート</td><td class="ok">✅</td><td><code>mau/report_generator.py</code></td></tr>
+          <tr><td>STIX / MISP / CSV エクスポート</td><td class="ok">✅</td><td><code>mau/report_export.py</code>（<code>MAU_EXPORT_REPORTS=0</code> で無効化可）</td></tr>
+          <tr><td>レポート Web 配信</td><td class="ok">✅</td><td><code>/reports/{base}.html</code>、<code>/export/{base}/csv</code> 等</td></tr>
+          <tr><td>解析履歴一覧</td><td class="ok">✅</td><td><code>GET /api/reports</code>、Web UI 最近のレポート表</td></tr>
           <tr><td>ヒューリスティック verdict / score</td><td class="ok">✅</td><td>YARA / capa / 静的 suspicious API 等</td></tr>
-          <tr><td>Web UI アップロード解析</td><td class="warn">⚠️</td><td><code>web_ui/app.py</code>、同期1件</td></tr>
+          <tr><td>Web UI アップロード解析</td><td class="warn">⚠️</td><td><code>web_ui/app.py</code>、同期1件・レポート閲覧/履歴は ✅</td></tr>
           <tr><td>CLI</td><td class="ok">✅</td><td><code>python -m mau.main</code> + <code>--archive-password</code></td></tr>
           <tr><td>Ollama 要約</td><td class="warn">⚠️</td><td>設定で任意、<code>report.executive_summary_llm</code></td></tr>
           <tr><td>Docker compose / USB オフライン配布</td><td class="ok">✅</td><td>README 手順</td></tr>
@@ -198,7 +201,9 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
           <tr><td>識別</td><td>MD5 / SHA256</td></tr>
           <tr><td>識別</td><td>file type（libmagic または <code>file</code>）</td></tr>
           <tr><td>文字列</td><td>ASCII strings 抽出（サンプル上限あり）</td></tr>
-          <tr><td>IOC</td><td>URL / IPv4 抽出（strings から）</td></tr>
+          <tr><td>IOC</td><td>URL / IPv4 / domain / email / registry / mutex（strings から）</td></tr>
+          <tr><td>ファジーハッシュ</td><td>ssdeep / TLSH / imphash（PE、依存あり）</td></tr>
+          <tr><td>ATT&amp;CK</td><td>capa rule 名 → technique ID ヒューリスティック（<code>mitre[]</code>）</td></tr>
           <tr><td>統計</td><td>ファイル全体エントロピー</td></tr>
           <tr><td>パッカー</td><td>Detect It Easy（diec / die、あれば）</td></tr>
           <tr><td>シグネチャ</td><td>YARA（<code>rules/yara</code>、失敗は記録のみ）</td></tr>
@@ -209,7 +214,8 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
           <tr><td>型別</td><td><strong>oletools</strong> — VBA / oleid（Office）</td></tr>
           <tr><td>型別</td><td><strong>pdfid</strong> — <code>/JavaScript</code> 等キーワード</td></tr>
           <tr><td>正規化</td><td><code>scanner_results[]</code> + <code>overall_risk</code></td></tr>
-          <tr><td>レガシー互換</td><td><code>yara_matches</code> / <code>capa_matches</code> / <code>mitre</code>（capa rule 名）</td></tr>
+          <tr><td>重複整理</td><td>YARA / capa 同名ルールの <code>scanner_results</code> デデュープ</td></tr>
+          <tr><td>レガシー互換</td><td><code>yara_matches</code> / <code>capa_matches</code> / <code>mitre</code></td></tr>
           <tr><td>運用</td><td>スキャナー単体失敗でも他は継続</td></tr>
         </tbody>
       </table>
@@ -217,14 +223,14 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
       <table>
         <thead><tr><th>機能</th><th>状態</th></tr></thead>
         <tbody>
-          <tr><td>ssdeep / TLSH / imphash</td><td class="bad">❌</td></tr>
-          <tr><td>domain / email / registry / mutex 抽出</td><td class="bad">❌</td></tr>
+          <tr><td>ssdeep / TLSH / imphash</td><td class="warn">⚠️</td><td>surface コンテナに <code>ssdeep</code> / <code>py-tlsh</code>。未導入時は MD5/SHA のみ</td></tr>
+          <tr><td>domain / email / registry / mutex 抽出</td><td class="ok">✅</td><td><code>ioc_extract.py</code></td></tr>
           <tr><td>ELF 専用ヘッダ解析</td><td class="bad">❌</td></tr>
           <tr><td>Authenticode / 署名検証</td><td class="bad">❌</td></tr>
           <tr><td>FLOSS / 難読化 strings 強化</td><td class="warn">⚠️</td></tr>
           <tr><td>Qu1cksc0pe 統合</td><td class="bad">❌</td></tr>
           <tr><td>LIEF / binwalk / APK 専用</td><td class="bad">❌</td></tr>
-          <tr><td>YARA / capa 重複の整理</td><td class="warn">⚠️ M1 残</td></tr>
+          <tr><td>YARA / capa 重複の整理</td><td class="ok">✅</td><td><code>scanner_dedup.py</code>（同名 rule 抑制）</td></tr>
         </tbody>
       </table>
 
@@ -284,11 +290,11 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
         <thead><tr><th>機能</th><th>状態</th></tr></thead>
         <tbody>
           <tr><td>Ghidra イメージのビルド・lab smoke</td><td class="warn">⚠️ 手動前提</td></tr>
-          <tr><td>アーカイブ内全子への Ghidra</td><td class="warn">⚠️ 動くが時間×子数</td></tr>
+          <tr><td>アーカイブ内全子への Ghidra</td><td class="warn">⚠️</td><td><code>phases.static.max_children</code> で上限（0=無制限）</td></tr>
           <tr><td>CFG / グラフ / xref の React 可視化 UI</td><td class="bad">❌ 意図的に非移植</td></tr>
           <tr><td>検体間 diff / バイナリ比較</td><td class="bad">❌</td></tr>
           <tr><td>シンボルリネーム・型編集 UI</td><td class="bad">❌</td></tr>
-          <tr><td>unipacker 事前展開</td><td class="warn">⚠️</td></tr>
+          <tr><td>unipacker 事前展開</td><td class="warn">⚠️</td><td>Phase 1b（UPX / unipacker）</td></tr>
           <tr><td>Ghidra 以外（IDA batch 等）</td><td class="bad">❌</td></tr>
         </tbody>
       </table>
@@ -299,22 +305,22 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
       <table>
         <thead><tr><th>#</th><th>機能</th><th>観点</th><th>理由</th></tr></thead>
         <tbody>
-          <tr><td>1</td><td><strong>レポート HTML の Web 配信</strong></td><td>横断</td><td>現状はパス文字列のみ。<code>/reports/{name}.html</code> 等でワンクリック閲覧</td></tr>
-          <tr><td>2</td><td><strong>IOC 拡充</strong>（domain / email / registry / mutex）</td><td>表層</td><td>strings ベースで triage 価値が大きい</td></tr>
-          <tr><td>3</td><td><strong>STIX / MISP / CSV エクスポート</strong></td><td>横断</td><td>レポート 2.1 からのオフライン共有</td></tr>
-          <tr><td>4</td><td><strong>解析履歴・一覧</strong></td><td>横断</td><td>同期1件制約の緩和</td></tr>
+          <tr><td>1</td><td>レポート HTML の Web 配信</td><td>横断</td><td class="ok">✅ 実装済み</td></tr>
+          <tr><td>2</td><td>IOC 拡充</td><td>表層</td><td class="ok">✅ 実装済み</td></tr>
+          <tr><td>3</td><td>STIX / MISP / CSV エクスポート</td><td>横断</td><td class="ok">✅ 実装済み</td></tr>
+          <tr><td>4</td><td>解析履歴・一覧</td><td>横断</td><td class="ok">✅ API + UI（非同期キューは未）</td></tr>
         </tbody>
       </table>
       <h3>中優先（解析深度）</h3>
       <table>
         <thead><tr><th>#</th><th>機能</th><th>観点</th><th>理由</th></tr></thead>
         <tbody>
-          <tr><td>5</td><td><strong>ssdeep / TLSH</strong></td><td>表層</td><td>類似検体ハント</td></tr>
-          <tr><td>6</td><td><strong>imphash</strong>（PE）</td><td>表層</td><td>ファミリクラスタリング</td></tr>
-          <tr><td>7</td><td><strong>ATT&amp;CK 正規マッピング</strong></td><td>表層/横断</td><td>capa rule 名 → technique ID</td></tr>
+          <tr><td>5</td><td>ssdeep / TLSH</td><td>表層</td><td class="warn">⚠️ 実装済み（依存インストール時）</td></tr>
+          <tr><td>6</td><td>imphash（PE）</td><td>表層</td><td class="ok">✅ pefile ベース</td></tr>
+          <tr><td>7</td><td>ATT&amp;CK 正規マッピング</td><td>表層/横断</td><td class="warn">⚠️ ヒューリスティック（全 rule 網羅ではない）</td></tr>
           <tr><td>8</td><td><strong>LIEF または ELF 強化</strong></td><td>表層</td><td>PE 以外の配布形態</td></tr>
-          <tr><td>9</td><td><strong><code>phases.static.max_children</code></strong></td><td>静的/横断</td><td>大きい ZIP で Ghidra 暴走防止</td></tr>
-          <tr><td>10</td><td><strong>YARA / capa 重複整理</strong></td><td>表層</td><td>M1 残・レポートノイズ削減</td></tr>
+          <tr><td>9</td><td><code>phases.static.max_children</code></td><td>静的/横断</td><td class="ok">✅ 実装済み</td></tr>
+          <tr><td>10</td><td>YARA / capa 重複整理</td><td>表層</td><td class="ok">✅ 実装済み</td></tr>
         </tbody>
       </table>
       <h3>中長期（動的・基盤）</h3>
@@ -342,7 +348,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
       <table>
         <thead><tr><th>観点</th><th>成熟度</th><th>一言</th></tr></thead>
         <tbody>
-          <tr><td><strong>表層</strong></td><td>★★★★☆</td><td>日常 triage に使える。IOC / ファジーハッシュが次の伸びしろ</td></tr>
+          <tr><td><strong>表層</strong></td><td>★★★★☆</td><td>IOC・ファジーハッシュ・ATT&amp;CK ヒューリスティックまで拡張。ELF/LIEF が次の伸びしろ</td></tr>
           <tr><td><strong>動的</strong></td><td>★☆☆☆☆</td><td>契約のみ。実挙動は外部 hook または将来 CAPE</td></tr>
           <tr><td><strong>静的</strong></td><td>★★★☆☆</td><td>JSON は充実。要 Ghidra ビルド・可視化は HTML サマリまで</td></tr>
         </tbody>
@@ -350,8 +356,8 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 
       <h2 id="usage">6. この分析の使い方</h2>
       <ul>
-        <li>実装タスク化: 高優先 #1（HTML 配信）または #2（IOC 拡充）からスライス化が現実的</li>
-        <li>仕様書 <code>仕様書.txt</code> との差分: VT API・ssdeep・imphash 等は未実装。FLOSS / アンパックは ⚠️ 部分対応</li>
+        <li>次のスライス候補: 非同期ジョブキュー（#12）、CAPE hook（#11）、ELF/LIEF（#8）</li>
+        <li>仕様書 <code>仕様書.txt</code> との差分: VT API・サンドボックス本体は未。ssdeep/TLSH/imphash・IOC 拡充・エクスポートは対応済み</li>
         <li>関連: <a href="feature-analysis.html">Feature Analysis</a>、<a href="re-analysis-pipeline.html">RE Pipeline</a>、<a href="architecture.html">Architecture</a></li>
       </ul>
     </main>

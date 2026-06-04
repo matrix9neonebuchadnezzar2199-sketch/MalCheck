@@ -17,6 +17,7 @@ phases:
     enabled: true
     timeout_sec: 600
     ghidra_image: ghidra-headless:latest
+    max_children: 0
 
 docker:
   socket_url: unix://var/run/docker.sock

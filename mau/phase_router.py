@@ -46,6 +46,8 @@ def _child_verdict(surface: dict[str, Any], dynamic: dict[str, Any], static: dic
 def _run_phases_for_sample(
     sample_path: str,
     cfg: dict[str, Any],
+    *,
+    run_static: bool = True,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
     """Surface → unpack → dynamic → static for one file."""
     sp = get_phase_config(cfg, "surface")
@@ -99,7 +101,7 @@ def _run_phases_for_sample(
         dynamic = _err_payload(e)
 
     static: dict[str, Any] = {}
-    if stp.get("enabled", True):
+    if stp.get("enabled", True) and run_static:
         try:
             static = run_static_analysis(
                 static_input,
@@ -113,6 +115,12 @@ def _run_phases_for_sample(
             static = static_failed(str(e), detail=getattr(e, "detail", "") or "")
             if isinstance(e, MauError):
                 static["type"] = e.__class__.__name__
+    elif not run_static:
+        static = {
+            "status": "skipped",
+            "reason": "static max_children limit reached for this archive",
+            "engine": "ghidra_headless",
+        }
     else:
         static = {"status": "skipped", "reason": "static disabled in config", "engine": "ghidra_headless"}
 
@@ -220,12 +228,20 @@ def run_pipeline_with_intake(
         return {"report": report, "surface": surface, "dynamic": dynamic, "static": static, "intake": intake}
 
     children: list[dict[str, Any]] = []
+    stp = get_phase_config(cfg, "static")
+    max_static = int(stp.get("max_children", 0) or 0)
+    static_runs = 0
 
     for leaf in leaf_paths:
         if not leaf.is_file():
             continue
         child_name = leaf.name
-        surface, unpack, dynamic, static = _run_phases_for_sample(str(leaf), cfg)
+        allow_static = max_static == 0 or static_runs < max_static
+        surface, unpack, dynamic, static = _run_phases_for_sample(
+            str(leaf), cfg, run_static=allow_static
+        )
+        if allow_static and stp.get("enabled", True) and static.get("status") != "skipped":
+            static_runs += 1
 
         verdict = _child_verdict(surface, dynamic, static)
         mal = extract_malicious_findings(child_name, surface, static)

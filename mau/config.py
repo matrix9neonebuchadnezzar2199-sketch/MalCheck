@@ -24,8 +24,14 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
 DEFAULT_CONFIG: dict[str, Any] = {
     "phases": {
         "surface": {"enabled": True, "timeout_sec": 600, "container": ""},
+        "unpack": {"enabled": True, "timeout_sec": 180, "max_attempts_per_sample": 2},
         "dynamic": {"enabled": False, "timeout_sec": 120},
-        "static": {"enabled": True, "timeout_sec": 600, "ghidra_image": "ghidra-headless:latest"},
+        "static": {
+            "enabled": True,
+            "timeout_sec": 600,
+            "ghidra_image": "ghidra-headless:latest",
+            "max_children": 0,
+        },
     },
     "docker": {
         "socket_url": "unix://var/run/docker.sock",

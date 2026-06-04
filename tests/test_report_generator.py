@@ -2,10 +2,19 @@ from mau.report_generator import aggregate_iocs, calculate_verdict, generate_rep
 
 
 def test_aggregate_iocs():
-    s = {"hashes": {"sha256": "abc"}, "urls": ["http://x"], "ips": ["1.2.3.4"]}
+    s = {
+        "hashes": {"sha256": "abc", "ssdeep": "3:abc"},
+        "urls": ["http://x"],
+        "ips": ["1.2.3.4"],
+        "domains": ["x.test"],
+        "mutexes": ["Global\\M1"],
+    }
     i = aggregate_iocs(s, {}, {})
     assert i["hashes"]["sha256"] == "abc"
+    assert i["hashes"]["ssdeep"] == "3:abc"
     assert "http://x" in i["urls"]
+    assert "x.test" in i["domains"]
+    assert "Global\\M1" in i["mutexes"]
 
 
 def test_verdict():
@@ -61,3 +70,6 @@ def test_generate_report_json(tmp_path):
     assert r["phase_status"]["static"] == "skipped"
     assert (tmp_path / "t.exe.json").is_file()
     assert (tmp_path / "t.exe.html").is_file()
+    assert (tmp_path / "t.exe.csv").is_file()
+    assert (tmp_path / "t.exe.misp.json").is_file()
+    assert (tmp_path / "t.exe.stix.json").is_file()

@@ -16,6 +16,10 @@ import sys
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
 _RISK_ORD = {"safe": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
 
 
@@ -240,6 +244,10 @@ def analyze(sample_path: str) -> dict[str, Any]:
         "strings_sample": [],
         "urls": [],
         "ips": [],
+        "domains": [],
+        "emails": [],
+        "registry_keys": [],
+        "mutexes": [],
         "entropy": None,
         "packer": None,
         "yara_matches": [],
@@ -255,6 +263,12 @@ def analyze(sample_path: str) -> dict[str, Any]:
 
     try:
         result["hashes"] = {"md5": _md5(path), "sha256": _sha256(path)}
+        try:
+            from fuzzy_hash import compute_fuzzy_hashes
+
+            result["hashes"].update(compute_fuzzy_hashes(path))
+        except ImportError:
+            pass
     except OSError as e:
         result["error"] = str(e)
         return result
@@ -272,15 +286,15 @@ def analyze(sample_path: str) -> dict[str, Any]:
     strs = _extract_ascii_strings(blob)[:500]
     result["strings_sample"] = strs[:80]
 
-    url_re = re.compile(r"https?://[^\s\x00-\x1f\"'<>]+|ftp://[^\s\x00-\x1f\"'<>]+", re.I)
-    ip_re = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
-    urls: set[str] = set()
-    ips: set[str] = set()
-    for s in strs:
-        urls.update(url_re.findall(s)[:5])
-        ips.update(ip_re.findall(s)[:5])
-    result["urls"] = sorted(urls)[:50]
-    result["ips"] = sorted(ips)[:50]
+    try:
+        from ioc_extract import merge_surface_iocs
+
+        merge_surface_iocs(result)
+    except ImportError:
+        result.setdefault("domains", [])
+        result.setdefault("emails", [])
+        result.setdefault("registry_keys", [])
+        result.setdefault("mutexes", [])
 
     result["packer"] = {"detected": False, "detail": _die_scan(path)}
     die_detail = result["packer"].get("detail")
@@ -368,9 +382,14 @@ def analyze(sample_path: str) -> dict[str, Any]:
     else:
         result["scanner_results"].append(_build_scanner_result("entropy", success=True, risk="safe"))
 
-    for m in result["capa_matches"][:50]:
-        if isinstance(m, dict) and m.get("rule"):
-            result["mitre"].append({"source": "capa", "rule": m.get("rule")})
+    try:
+        from attack_map import map_capa_to_attack
+
+        result["mitre"] = map_capa_to_attack(result["capa_matches"])
+    except ImportError:
+        for m in result["capa_matches"][:50]:
+            if isinstance(m, dict) and m.get("rule"):
+                result["mitre"].append({"source": "capa", "rule": m.get("rule")})
 
     anti_capa = _capa_anti_analysis_matches(result["capa_matches"])
     if anti_capa:
@@ -409,9 +428,12 @@ def analyze(sample_path: str) -> dict[str, Any]:
             result["strings_sample"] = merged[:120]
             url_re = re.compile(r"https?://[^\s\x00-\x1f\"'<>]+|ftp://[^\s\x00-\x1f\"'<>]+", re.I)
             ip_re = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
-            for s in decoded[:200]:
-                result["urls"] = sorted(set(result.get("urls") or []) | set(url_re.findall(s)[:5]))[:50]
-                result["ips"] = sorted(set(result.get("ips") or []) | set(ip_re.findall(s)[:5]))[:50]
+            try:
+                from ioc_extract import merge_surface_iocs
+
+                merge_surface_iocs(result)
+            except ImportError:
+                pass
             result["scanner_results"].append(
                 _build_scanner_result(
                     "floss",
@@ -437,6 +459,13 @@ def analyze(sample_path: str) -> dict[str, Any]:
                     error=str(floss.get("error") or "floss skipped"),
                 )
             )
+
+    try:
+        from scanner_dedup import dedupe_scanner_results
+
+        result["scanner_results"] = dedupe_scanner_results(result["scanner_results"])
+    except ImportError:
+        pass
 
     result["overall_risk"] = _risk_max(*(str(x.get("risk", "safe")) for x in result["scanner_results"]))
     return result
