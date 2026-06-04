@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MalCheck 機能分析（表層・動的・静的）- MalCheck Docs</title>
+  <style>
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel-2: #0b1018;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --ok: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --code: #010409;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, Helvetica, Arial, sans-serif;
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(22, 27, 34, 0.96);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  backdrop-filter: blur(12px);
+}
+.brand { max-width: 1120px; margin: 0 auto; font-weight: 700; }
+.brand span { color: var(--muted); font-weight: 500; margin-left: 8px; }
+.layout {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
+  padding: 24px 20px 56px;
+}
+.nav {
+  position: sticky;
+  top: 64px;
+  align-self: start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 12px;
+}
+.nav-title { color: var(--muted); font-size: 12px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .06em; }
+.nav a {
+  display: block;
+  color: var(--accent);
+  text-decoration: none;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 14px;
+}
+.nav a:hover { background: rgba(88,166,255,.12); text-decoration: none; }
+.nav a.current { background: rgba(88,166,255,.18); font-weight: 600; }
+main {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--panel) 0, var(--bg) 180px);
+  padding: 28px;
+}
+h1, h2, h3, h4 { line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 2rem; margin-top: 0; padding-bottom: .35em; border-bottom: 1px solid var(--border); }
+h2 { font-size: 1.45rem; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.15rem; }
+p, ul, ol, table, pre, blockquote { margin-top: 0; margin-bottom: 1em; }
+a { color: var(--accent); }
+code {
+  background: rgba(110,118,129,.24);
+  border-radius: 6px;
+  padding: .15em .35em;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: .92em;
+}
+pre {
+  background: var(--code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: auto;
+  padding: 16px;
+}
+pre.mermaid {
+  white-space: pre;
+  color: #d2a8ff;
+  position: relative;
+}
+pre.mermaid::before {
+  content: "mermaid";
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+th, td { border: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+th { background: var(--panel-2); font-weight: 700; }
+tr:nth-child(even) td { background: rgba(110,118,129,.08); }
+hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
+.meta { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 1px 9px;
+  font-size: 12px;
+}
+.ok { color: var(--ok); }
+.warn { color: var(--warn); }
+.bad { color: var(--bad); }
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; }
+  .nav { position: static; }
+  main { padding: 20px; }
+}
+</style>
+</head>
+<body>
+  <header class="topbar"><div class="brand">MalCheck Docs <span>HTML canonical documentation</span></div></header>
+  <div class="layout">
+    <aside class="nav">
+      <p class="nav-title">Documents</p>
+      <a href="architecture.html">Architecture</a>
+      <a href="milestones.html">Milestones</a>
+      <a href="implementation-rules.html">Implementation Rules</a>
+      <a href="development-diary.html">Development Diary</a>
+      <a href="feature-analysis.html">Feature Analysis</a>
+      <a class="current" href="capability-analysis.html">Capability Matrix</a>
+      <a href="static-analysis-schema.html">Static JSON Schema</a>
+    </aside>
+    <main>
+      <div class="meta"><span class="badge">HTML canonical</span> Baseline: main @ b0616b4 · Last updated: 2026-06-05</div>
+      <h1 id="title">MalCheck 機能分析（表層 / 動的 / 静的）</h1>
+      <p>表層・動的・静的の3観点で<strong>実装済み機能</strong>と<strong>今後の推奨機能</strong>を一覧化する正本です。フロー図・シーケンスの詳細は <a href="feature-analysis.html">Feature Analysis</a> を参照。</p>
+      <p><strong>凡例:</strong> <span class="ok">✅ 実装済み</span> / <span class="warn">⚠️ 部分的</span>（要 Docker・要イメージ・hook のみ等） / <span class="bad">❌ 未実装</span></p>
+
+      <h2 id="cross">横断（3フェーズ共通）</h2>
+      <table>
+        <thead><tr><th>機能</th><th>状態</th><th>備考</th></tr></thead>
+        <tbody>
+          <tr><td>フェーズオーケストレーション</td><td class="ok">✅</td><td><code>run_pipeline</code> / <code>run_pipeline_with_intake</code></td></tr>
+          <tr><td>フェーズ失敗の分離</td><td class="ok">✅</td><td>1フェーズ失敗でもレポート生成継続</td></tr>
+          <tr><td>Intake（ZIP/7z 解凍）</td><td class="ok">✅</td><td><code>mau/intake.py</code>、パスワード試行・ネスト上限</td></tr>
+          <tr><td>子ファイル fan-out</td><td class="ok">✅</td><td>展開葉ごとに surface / static / dynamic</td></tr>
+          <tr><td>親レポート集約 schema 2.1</td><td class="ok">✅</td><td><code>intake.children[]</code>、<code>malicious_findings</code>、verdict 昇格</td></tr>
+          <tr><td>JSON + HTML レポート</td><td class="ok">✅</td><td><code>mau/report_generator.py</code></td></tr>
+          <tr><td>ヒューリスティック verdict / score</td><td class="ok">✅</td><td>YARA / capa / 静的 suspicious API 等</td></tr>
+          <tr><td>Web UI アップロード解析</td><td class="warn">⚠️</td><td><code>web_ui/app.py</code>、同期1件</td></tr>
+          <tr><td>CLI</td><td class="ok">✅</td><td><code>python -m mau.main</code> + <code>--archive-password</code></td></tr>
+          <tr><td>Ollama 要約</td><td class="warn">⚠️</td><td>設定で任意、<code>report.executive_summary_llm</code></td></tr>
+          <tr><td>Docker compose / USB オフライン配布</td><td class="ok">✅</td><td>README 手順</td></tr>
+          <tr><td>オンライン IOC 照会</td><td class="bad">❌</td><td>方針上禁止（OPSEC）</td></tr>
+        </tbody>
+      </table>
+      <pre class="mermaid">flowchart LR
+    subgraph cross [Cross_cutting]
+        intake[Intake]
+        orch[phase_router]
+        rep[Report_2_1]
+    end
+    intake --> surface[Phase1]
+    intake --> dynamic[Phase2]
+    intake --> static[Phase3]
+    surface --> rep
+    dynamic --> rep
+    static --> rep</pre>
+
+      <h2 id="surface">1. 表層解析（Phase 1 / Surface）</h2>
+      <p><strong>実行経路:</strong> <code>mau.surface_runner</code> → surface コンテナで <code>scripts/remnux/analyze.py</code>（+ <code>format_scanners.py</code>）</p>
+      <h3>実現済み</h3>
+      <table>
+        <thead><tr><th>カテゴリ</th><th>機能</th></tr></thead>
+        <tbody>
+          <tr><td>識別</td><td>MD5 / SHA256</td></tr>
+          <tr><td>識別</td><td>file type（libmagic または <code>file</code>）</td></tr>
+          <tr><td>文字列</td><td>ASCII strings 抽出（サンプル上限あり）</td></tr>
+          <tr><td>IOC</td><td>URL / IPv4 抽出（strings から）</td></tr>
+          <tr><td>統計</td><td>ファイル全体エントロピー</td></tr>
+          <tr><td>パッカー</td><td>Detect It Easy（diec / die、あれば）</td></tr>
+          <tr><td>シグネチャ</td><td>YARA（<code>rules/yara</code>、失敗は記録のみ）</td></tr>
+          <tr><td>能力</td><td>capa JSON（インストール時）</td></tr>
+          <tr><td>型別</td><td><strong>pefile</strong> — imports / sections / entropy 等</td></tr>
+          <tr><td>型別</td><td><strong>oletools</strong> — VBA / oleid（Office）</td></tr>
+          <tr><td>型別</td><td><strong>pdfid</strong> — <code>/JavaScript</code> 等キーワード</td></tr>
+          <tr><td>正規化</td><td><code>scanner_results[]</code> + <code>overall_risk</code></td></tr>
+          <tr><td>レガシー互換</td><td><code>yara_matches</code> / <code>capa_matches</code> / <code>mitre</code>（capa rule 名）</td></tr>
+          <tr><td>運用</td><td>スキャナー単体失敗でも他は継続</td></tr>
+        </tbody>
+      </table>
+      <h3>部分的・未実装（表層）</h3>
+      <table>
+        <thead><tr><th>機能</th><th>状態</th></tr></thead>
+        <tbody>
+          <tr><td>ssdeep / TLSH / imphash</td><td class="bad">❌</td></tr>
+          <tr><td>domain / email / registry / mutex 抽出</td><td class="bad">❌</td></tr>
+          <tr><td>ELF 専用ヘッダ解析</td><td class="bad">❌</td></tr>
+          <tr><td>Authenticode / 署名検証</td><td class="bad">❌</td></tr>
+          <tr><td>FLOSS / 難読化 strings 強化</td><td class="bad">❌</td></tr>
+          <tr><td>Qu1cksc0pe 統合</td><td class="bad">❌</td></tr>
+          <tr><td>LIEF / binwalk / APK 専用</td><td class="bad">❌</td></tr>
+          <tr><td>YARA / capa 重複の整理</td><td class="warn">⚠️ M1 残</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="dynamic">2. 動的解析（Phase 2 / Dynamic）</h2>
+      <p><strong>実行経路:</strong> <code>mau/dynamic_analyzer.py</code> — 既定 <code>phases.dynamic.enabled: false</code></p>
+      <h3>実現済み（契約・フレームのみ）</h3>
+      <table>
+        <thead><tr><th>機能</th><th>状態</th></tr></thead>
+        <tbody>
+          <tr><td>無効時 <code>status: skipped</code></td><td class="ok">✅</td></tr>
+          <tr><td>有効 + hook 未設定 → <code>not_implemented</code></td><td class="ok">✅</td></tr>
+          <tr><td><code>MAU_DYNAMIC_HOOK</code> 外部スクリプト</td><td class="ok">✅ JSON 正規化</td></tr>
+          <tr><td>hook 失敗の構造化</td><td class="ok">✅</td></tr>
+          <tr><td>レポートへの phase ステータス反映</td><td class="ok">✅</td></tr>
+        </tbody>
+      </table>
+      <h3>未実装（動的本体）</h3>
+      <table>
+        <thead><tr><th>機能</th><th>状態</th></tr></thead>
+        <tbody>
+          <tr><td>CAPE / Cuckoo サンドボックス</td><td class="bad">❌</td></tr>
+          <tr><td>プロセス / API / レジストリ / FS 挙動収集</td><td class="bad">❌</td></tr>
+          <tr><td>ネットワークキャプチャ（PCAP）</td><td class="bad">❌</td></tr>
+          <tr><td>メモリダンプ / config 抽出</td><td class="bad">❌</td></tr>
+          <tr><td>INetSim / FakeNet</td><td class="bad">❌</td></tr>
+          <tr><td>マルチ VM キュー・再実行</td><td class="bad">❌</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="static">3. 静的解析（Phase 3 / Static）</h2>
+      <p><strong>実行経路:</strong> <code>mau/static_analyzer.py</code> → <code>ghidra-headless</code>（<code>network_mode: none</code>）→ <code>scripts/ghidra/auto_analyze.py</code></p>
+      <h3>実現済み</h3>
+      <table>
+        <thead><tr><th>カテゴリ</th><th>機能</th></tr></thead>
+        <tbody>
+          <tr><td>実行</td><td>Docker 1 回 headless → <code>/output/analysis.json</code></td></tr>
+          <tr><td>JSON</td><td>関数別 <code>decompiled_c</code>、imports / exports / strings</td></tr>
+          <tr><td>JSON</td><td>関数 CFG（上限付き）</td></tr>
+          <tr><td>JSON</td><td>プログラム <code>call_graph</code>（上限付き）</td></tr>
+          <tr><td>JSON</td><td>関数 xrefs（callers / callees）</td></tr>
+          <tr><td>JSON</td><td><code>decompile_insights</code>（ヒューリスティック）</td></tr>
+          <tr><td>JSON</td><td><code>suspicious_apis</code> ロールアップ</td></tr>
+          <tr><td>JSON</td><td><code>truncated</code> フラグ</td></tr>
+          <tr><td>統合</td><td><code>mau/static_normalize.py</code> → <code>phase3_static.analysis_json</code> + <code>summary</code></td></tr>
+          <tr><td>レポート</td><td>HTML Ghidra サマリ表、suspicious API 上位</td></tr>
+          <tr><td>レポート</td><td>verdict へ suspicious API 件数反映</td></tr>
+          <tr><td>互換</td><td><code>MAU_GHIDRA_LEGACY=1</code> で旧 3 パス出力</td></tr>
+          <tr><td>失敗</td><td>イメージ未ロード時 <code>status: failed</code>、パイプライン継続</td></tr>
+          <tr><td>ドキュメント</td><td><a href="static-analysis-schema.html">static-analysis-schema.html</a></td></tr>
+        </tbody>
+      </table>
+      <h3>部分的・未実装（静的）</h3>
+      <table>
+        <thead><tr><th>機能</th><th>状態</th></tr></thead>
+        <tbody>
+          <tr><td>Ghidra イメージのビルド・lab smoke</td><td class="warn">⚠️ 手動前提</td></tr>
+          <tr><td>アーカイブ内全子への Ghidra</td><td class="warn">⚠️ 動くが時間×子数</td></tr>
+          <tr><td>CFG / グラフ / xref の React 可視化 UI</td><td class="bad">❌ 意図的に非移植</td></tr>
+          <tr><td>検体間 diff / バイナリ比較</td><td class="bad">❌</td></tr>
+          <tr><td>シンボルリネーム・型編集 UI</td><td class="bad">❌</td></tr>
+          <tr><td>unipacker 事前展開</td><td class="bad">❌</td></tr>
+          <tr><td>Ghidra 以外（IDA batch 等）</td><td class="bad">❌</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="recommended">4. 今後実装をおすすめする機能</h2>
+      <p>優先度は triage 実用性と <a href="milestones.html">milestones</a> / <a href="feature-analysis.html">feature-analysis §6</a> に沿った提案です。</p>
+      <h3>高優先（UX・日常運用）</h3>
+      <table>
+        <thead><tr><th>#</th><th>機能</th><th>観点</th><th>理由</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><strong>レポート HTML の Web 配信</strong></td><td>横断</td><td>現状はパス文字列のみ。<code>/reports/{name}.html</code> 等でワンクリック閲覧</td></tr>
+          <tr><td>2</td><td><strong>IOC 拡充</strong>（domain / email / registry / mutex）</td><td>表層</td><td>strings ベースで triage 価値が大きい</td></tr>
+          <tr><td>3</td><td><strong>STIX / MISP / CSV エクスポート</strong></td><td>横断</td><td>レポート 2.1 からのオフライン共有</td></tr>
+          <tr><td>4</td><td><strong>解析履歴・一覧</strong></td><td>横断</td><td>同期1件制約の緩和</td></tr>
+        </tbody>
+      </table>
+      <h3>中優先（解析深度）</h3>
+      <table>
+        <thead><tr><th>#</th><th>機能</th><th>観点</th><th>理由</th></tr></thead>
+        <tbody>
+          <tr><td>5</td><td><strong>ssdeep / TLSH</strong></td><td>表層</td><td>類似検体ハント</td></tr>
+          <tr><td>6</td><td><strong>imphash</strong>（PE）</td><td>表層</td><td>ファミリクラスタリング</td></tr>
+          <tr><td>7</td><td><strong>ATT&amp;CK 正規マッピング</strong></td><td>表層/横断</td><td>capa rule 名 → technique ID</td></tr>
+          <tr><td>8</td><td><strong>LIEF または ELF 強化</strong></td><td>表層</td><td>PE 以外の配布形態</td></tr>
+          <tr><td>9</td><td><strong><code>phases.static.max_children</code></strong></td><td>静的/横断</td><td>大きい ZIP で Ghidra 暴走防止</td></tr>
+          <tr><td>10</td><td><strong>YARA / capa 重複整理</strong></td><td>表層</td><td>M1 残・レポートノイズ削減</td></tr>
+        </tbody>
+      </table>
+      <h3>中長期（動的・基盤）</h3>
+      <table>
+        <thead><tr><th>#</th><th>機能</th><th>観点</th><th>理由</th></tr></thead>
+        <tbody>
+          <tr><td>11</td><td><strong>CAPEv2 hook 実装</strong></td><td>動的</td><td>M5〜M6。<code>MAU_DYNAMIC_HOOK</code> 契約の先</td></tr>
+          <tr><td>12</td><td><strong>ジョブキュー / 非同期解析</strong></td><td>横断</td><td>大容量・複数検体の運用</td></tr>
+          <tr><td>13</td><td><strong>検体ライフサイクル</strong></td><td>横断</td><td>解析後削除・保持ポリシー（lab OPSEC）</td></tr>
+          <tr><td>14</td><td><strong>unipacker / パッカー展開前処理</strong></td><td>表層→静的</td><td>パック済み PE の到達率向上</td></tr>
+          <tr><td>15</td><td><strong>簡易 CFG ビュー（HTML のみ）</strong></td><td>静的</td><td><code>analysis_json</code> のサブセット表示</td></tr>
+        </tbody>
+      </table>
+      <h3>低優先 / 慎重に</h3>
+      <table>
+        <thead><tr><th>#</th><th>機能</th><th>備考</th></tr></thead>
+        <tbody>
+          <tr><td>16</td><td>VirusTotal 等オンライン enrich</td><td>既定オフのまま。lab 方針と矛盾しやすい</td></tr>
+          <tr><td>17</td><td>Cyber Ghidra 級 React UI 全移植</td><td>統合レポートが価値。コスト大</td></tr>
+          <tr><td>18</td><td>RAR ネイティブ展開</td><td>ZIP/7z 済み。需要があれば</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="maturity">5. 成熟度サマリ</h2>
+      <table>
+        <thead><tr><th>観点</th><th>成熟度</th><th>一言</th></tr></thead>
+        <tbody>
+          <tr><td><strong>表層</strong></td><td>★★★★☆</td><td>日常 triage に使える。IOC / ファジーハッシュが次の伸びしろ</td></tr>
+          <tr><td><strong>動的</strong></td><td>★☆☆☆☆</td><td>契約のみ。実挙動は外部 hook または将来 CAPE</td></tr>
+          <tr><td><strong>静的</strong></td><td>★★★☆☆</td><td>JSON は充実。要 Ghidra ビルド・可視化は HTML サマリまで</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="usage">6. この分析の使い方</h2>
+      <ul>
+        <li>実装タスク化: 高優先 #1（HTML 配信）または #2（IOC 拡充）からスライス化が現実的</li>
+        <li>仕様書 <code>仕様書.txt</code> との差分: VT API・FLOSS・ssdeep 等は仕様にあって未実装の項目が残る</li>
+        <li>関連: <a href="feature-analysis.html">Feature Analysis</a>（図・infected ZIP 詳細）、<a href="architecture.html">Architecture</a>（契約）</li>
+      </ul>
+    </main>
+  </div>
+</body>
+</html>

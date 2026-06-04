@@ -60,7 +60,8 @@ MalCheck は「統合解析の母艦」です。
 
 - [`docs/architecture.html`](docs/architecture.html)
 - [`docs/milestones.html`](docs/milestones.html)
-- [`docs/feature-analysis.html`](docs/feature-analysis.html)（機能マップ・シーケンス図）
+- [`docs/capability-analysis.html`](docs/capability-analysis.html)（表層・動的・静的の機能一覧と推奨ロードマップ）
+- [`docs/feature-analysis.html`](docs/feature-analysis.html)（機能マップ・シーケンス図・拡張子別挙動）
 - [`docs/static-analysis-schema.html`](docs/static-analysis-schema.html)（Ghidra `analysis.json`）
 - [`docs/implementation-rules.html`](docs/implementation-rules.html)
 - [`docs/development-diary.html`](docs/development-diary.html)
