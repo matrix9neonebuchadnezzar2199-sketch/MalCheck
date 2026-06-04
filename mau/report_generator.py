@@ -72,9 +72,19 @@ def calculate_verdict(
         s_score, s_reasons = score_from_surface(surface)
         score += s_score
         reasons.extend(s_reasons)
-    if isinstance(static, dict) and static.get("metadata"):
-        score += 5
-        reasons.append("static metadata present")
+    if isinstance(static, dict):
+        summ = static.get("summary")
+        if isinstance(summ, dict):
+            sus = int(summ.get("suspicious_api_count") or 0)
+            if sus > 0:
+                score += min(25, sus * 5)
+                reasons.append(f"static: suspicious APIs ({sus})")
+            if summ.get("truncated"):
+                score += 5
+                reasons.append("static: Ghidra export truncated")
+        elif static.get("metadata"):
+            score += 5
+            reasons.append("static metadata present")
     label = "unknown"
     if score >= 50:
         label = "high_risk_indicators"

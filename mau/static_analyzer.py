@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from pathlib import Path
@@ -12,6 +11,7 @@ import docker
 from docker.errors import APIError, DockerException, ImageNotFound
 
 from mau.errors import DockerError, StaticError
+from mau.static_normalize import load_static_outputs, static_failed
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ def run_static_analysis(
     output_subdir: Optional[str] = None,
 ) -> dict[str, Any]:
     """
-    Run ghidra-headless container once; collect decompiled.c, functions.json, metadata.json.
+    Run ghidra-headless container once; collect analysis.json (auto_analyze) and optional legacy files.
     """
     host_sample = Path(sample_path).resolve()
     if not host_sample.is_file():
@@ -83,49 +83,7 @@ def run_static_analysis(
     if log_text:
         log.debug("Ghidra container output (tail): %s", log_text[-2000:])
 
-    result: dict[str, Any] = {
-        "image": image,
-        "output_dir": str(static_dir),
-        "decompiled_c": None,
-        "decompiled_summary": None,
-        "functions": None,
-        "metadata": None,
-        "logs": {},
-    }
-
-    def _read_json(p: Path) -> Any:
-        if not p.is_file():
-            return None
-        try:
-            return json.loads(p.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            log.warning("Invalid JSON: %s", p)
-            return None
-
-    def _read_text(p: Path) -> Optional[str]:
-        if not p.is_file():
-            return None
-        try:
-            return p.read_text(encoding="utf-8", errors="replace")
-        except OSError as e:
-            log.warning("Cannot read %s: %s", p, e)
-            return None
-
-    dc = static_dir / "decompiled.c"
-    if dc.is_file():
-        result["decompiled_c"] = _read_text(dc)
-    ds = static_dir / "decompiled_summary.json"
-    if ds.is_file():
-        result["decompiled_summary"] = _read_json(ds)
-    fn = static_dir / "functions.json"
-    if fn.is_file():
-        result["functions"] = _read_json(fn)
-    meta = static_dir / "metadata.json"
-    if meta.is_file():
-        result["metadata"] = _read_json(meta)
-    for log_name in ("ghidra_decompile.log", "ghidra_functions.log", "ghidra_metadata.log"):
-        lp = static_dir / log_name
-        if lp.is_file():
-            result["logs"][log_name] = _read_text(lp)
-
+    result = load_static_outputs(static_dir, image=image)
+    if result.get("status") == "failed" and log_text and "analysis.json" not in log_text:
+        result["logs"] = {**result.get("logs", {}), "container_tail": log_text[-4000:]}
     return result

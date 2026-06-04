@@ -1,0 +1,26 @@
+{
+  "file_name": "sample.exe",
+  "architecture": "x86:LE:64:default",
+  "compiler": "windows",
+  "entry_points": ["0x140001000"],
+  "functions": [
+    {
+      "name": "entry",
+      "address": "0x140001000",
+      "size": 32,
+      "decompiled_c": "void entry(void) { return; }"
+    }
+  ],
+  "strings": [{"address": "0x140002000", "value": "Hello"}],
+  "imports": [{"library": "KERNEL32.dll", "function": "VirtualAlloc", "address": "0x140003000"}],
+  "exports": [],
+  "suspicious_apis": [
+    {
+      "name": "VirtualAlloc",
+      "address": "0x140003000",
+      "seen_from": "entry"
+    }
+  ],
+  "truncated": false,
+  "call_graph": {"nodes": [], "edges": []}
+}

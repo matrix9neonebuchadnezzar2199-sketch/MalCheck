@@ -21,6 +21,7 @@ from mau.findings_extract import (
 from mau.intake import process_intake
 from mau.report_generator import calculate_verdict, generate_aggregated_report, generate_report
 from mau.static_analyzer import run_static_analysis
+from mau.static_normalize import static_failed
 from mau.surface_runner import run_surface_analysis
 
 log = logging.getLogger(__name__)
@@ -115,9 +116,11 @@ def run_pipeline(
             )
         except Exception as e:
             log.exception("Static phase failed")
-            static = _err_payload(e)
+            static = static_failed(str(e), detail=getattr(e, "detail", "") or "")
+            if isinstance(e, MauError):
+                static["type"] = e.__class__.__name__
     else:
-        static = {"status": "skipped", "reason": "static disabled in config"}
+        static = {"status": "skipped", "reason": "static disabled in config", "engine": "ghidra_headless"}
 
     rep_cfg = cfg.get("report") or {}
     ollama_cfg = cfg.get("ollama") or {}
@@ -224,9 +227,10 @@ def run_pipeline_with_intake(
                     timeout_sec=int(stp.get("timeout_sec", 600)),
                 )
             except Exception as e:
-                static = _err_payload(e)
+                log.exception("Static failed for %s", leaf)
+                static = static_failed(str(e), detail=getattr(e, "detail", "") or "")
         else:
-            static = {"status": "skipped"}
+            static = {"status": "skipped", "engine": "ghidra_headless"}
 
         verdict = _child_verdict(surface, dynamic, static)
         mal = extract_malicious_findings(child_name, surface)

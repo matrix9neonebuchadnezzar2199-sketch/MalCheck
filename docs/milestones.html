@@ -176,7 +176,20 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 </tbody>
 </table>
 <p>Verification: <code>pytest tests -v</code> (includes encrypted ZIP fixture). After pulling M-U2, rebuild the surface image: <code>docker compose build surface-analyzer</code> (context: repo root, see <code>containers/surface/Dockerfile</code>).</p>
-<p>Resume the original roadmap at <a href="#milestone-2-static-analysis-upgrade">Milestone 2</a>.</p>
+<p>Resume the original roadmap at <a href="#milestone-2-static-analysis-upgrade">Milestone 2</a> (completed 2026-06-04).</p>
+<h2 id="milestone-2-static-analysis-upgrade-done">Milestone 2: Static Analysis Upgrade — completed 2026-06-04</h2>
+<p>Cyber Ghidra <code>auto_analyze.py</code> absorbed into MalCheck; <code>cyber-ghidra-webui-main</code> retired.</p>
+<table>
+<thead><tr><th>Deliverable</th><th>Location</th></tr></thead>
+<tbody>
+<tr><td>Unified Ghidra post-script</td><td><code>scripts/ghidra/auto_analyze.py</code>, <code>build/ghidra-headless/scripts/</code></td></tr>
+<tr><td>Single-pass entrypoint</td><td><code>build/ghidra-headless/entrypoint.sh</code> → <code>/output/analysis.json</code></td></tr>
+<tr><td>Normalizer</td><td><code>mau/static_normalize.py</code>, <code>mau/static_analyzer.py</code></td></tr>
+<tr><td>HTML summary</td><td><code>mau/templates/report.html</code></td></tr>
+<tr><td>Schema doc</td><td><code>docs/static-analysis-schema.html</code></td></tr>
+</tbody>
+</table>
+<p>Verification: <code>pytest tests -v</code> (includes <code>test_static_normalize.py</code>). Lab: rebuild <code>ghidra-headless:latest</code> and run <code>python -m mau.main &lt;pe&gt;</code>.</p>
 <h2 id="milestone-0-foundation-documents-and-contracts">Milestone 0: Foundation Documents and Contracts</h2>
 <p>Purpose: make the intended direction unambiguous before implementation begins.</p>
 <p>Scope:</p>

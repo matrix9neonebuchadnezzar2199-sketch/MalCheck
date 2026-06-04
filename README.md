@@ -150,13 +150,17 @@ docker compose build surface-analyzer
 
 ## Ghidra イメージのビルド
 
-Ghidra ZIP 配置後、静的解析イメージをビルドします。
+Ghidra ZIP を `build/ghidra-headless/` に配置したうえで、静的解析イメージをビルドします（リポジトリルートから）:
 
 ```text
 docker build -t ghidra-headless:latest -f build/ghidra-headless/Dockerfile build/ghidra-headless
 ```
 
-このイメージが無い場合、Static フェーズはエラー payload を記録しますが、他フェーズの結果を使ったレポート生成は継続可能です。
+既定では **1 回**の headless 実行で `auto_analyze.py` が `/output/analysis.json` を生成します（CFG・コールグラフ・関数別デコンパイルを含む）。レガシー 3 パス出力が必要な場合はコンテナに `MAU_GHIDRA_LEGACY=1` を渡します。
+
+スキーマ正本: [`docs/static-analysis-schema.html`](docs/static-analysis-schema.html)
+
+このイメージが無い場合、Static フェーズは `status: failed` を記録しますが、他フェーズのレポート生成は継続します。
 
 ---
 

@@ -28,6 +28,19 @@ def test_verdict_with_scanner_results():
     assert any("yara matches" in reason for reason in v["reasons"])
 
 
+def test_verdict_with_static_summary() -> None:
+    v = calculate_verdict(
+        {},
+        {},
+        {
+            "status": "completed",
+            "summary": {"suspicious_api_count": 2, "truncated": False},
+        },
+    )
+    assert v["score"] >= 10
+    assert any("suspicious APIs" in r for r in v["reasons"])
+
+
 def test_generate_report_json(tmp_path):
     surface = {"hashes": {"md5": "x"}}
     dynamic = {"status": "skipped"}

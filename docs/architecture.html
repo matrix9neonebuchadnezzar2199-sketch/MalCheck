@@ -165,9 +165,9 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 <li><code>mau.report_generator</code> creates JSON and HTML reports.</li>
 <li><code>web_ui.app</code> provides a minimal upload-and-run FastAPI UI.</li>
 </ul>
-<p>Cyber Ghidra WebUI contributes capabilities that MalCheck should selectively absorb:</p>
+<p>Capabilities migrated from Cyber Ghidra WebUI (repository removed after M2):</p>
 <ul>
-<li>Rich <code>*_analysis.json</code> from <code>scripts/ghidra/auto_analyze.py</code>.</li>
+<li>Rich <code>analysis.json</code> from <code>scripts/ghidra/auto_analyze.py</code> (see <a href="static-analysis-schema.html">static-analysis-schema.html</a>).</li>
 <li>Function-level decompile data, CFG, xrefs, call graph, suspicious API extraction, and line-address mapping.</li>
 <li>MIME-routed scanner plugins for PE, ELF, Mach-O, PDF, Office, APK, binwalk, capa, LIEF, pefile, oletools, and pdfid.</li>
 <li>Stronger reverse-engineering UI concepts such as function trees, graph views, xref panels, and history reopening.</li>
@@ -223,7 +223,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 <p>The report must remain backward compatible with the current MalCheck keys while adding richer subdocuments.</p>
 <pre><code class="language-json">{
   &quot;meta&quot;: {
-    &quot;schema_version&quot;: &quot;2.0&quot;,
+    &quot;schema_version&quot;: &quot;2.1&quot;,
     &quot;timestamp&quot;: &quot;...&quot;,
     &quot;sample_name&quot;: &quot;sample.exe&quot;
   },
@@ -247,10 +247,23 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
     &quot;filesystem&quot;: [],
     &quot;registry&quot;: []
   },
+  &quot;intake&quot;: {
+    &quot;status&quot;: &quot;completed&quot;,
+    &quot;archive_type&quot;: &quot;zip&quot;,
+    &quot;password_used&quot;: &quot;infected&quot;,
+    &quot;extracted_count&quot;: 1,
+    &quot;children&quot;: []
+  },
+  &quot;malicious_findings&quot;: [],
   &quot;phase3_static&quot;: {
-    &quot;engine&quot;: &quot;cyber_ghidra&quot;,
+    &quot;engine&quot;: &quot;ghidra_headless&quot;,
+    &quot;status&quot;: &quot;completed&quot;,
     &quot;analysis_json&quot;: {},
-    &quot;summary&quot;: {}
+    &quot;summary&quot;: {
+      &quot;function_count&quot;: 0,
+      &quot;suspicious_api_count&quot;: 0,
+      &quot;truncated&quot;: false
+    }
   },
   &quot;iocs&quot;: {},
   &quot;mitre_mapping&quot;: []
@@ -287,7 +300,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 <li>Network, process, registry, filesystem, screenshot, and PCAP summaries.</li>
 </ul>
 <h3 id="phase-3-static">Phase 3: Static</h3>
-<p>Static analysis should migrate toward Cyber Ghidra's richer JSON.</p>
+<p>Static analysis uses <code>auto_analyze.py</code> output as <code>phase3_static.analysis_json</code> (see <a href="static-analysis-schema.html">static-analysis-schema.html</a>).</p>
 <p>Responsibilities:</p>
 <ul>
 <li>Run Ghidra headless in an isolated container.</li>
@@ -306,7 +319,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 <p>Use MalCheck as the orchestrator and integrate Cyber Ghidra engines through adapters:</p>
 <ul>
 <li><code>surface_scanner_adapter</code>: converts Cyber Ghidra scanner results into <code>phase1_surface.scanner_results</code>.</li>
-<li><code>cyber_ghidra_static_adapter</code>: runs or imports Cyber Ghidra-compatible <code>analysis_json</code> into <code>phase3_static</code>.</li>
+<li><code>mau/static_normalize.py</code>: loads <code>analysis.json</code> from Ghidra headless into <code>phase3_static</code>.</li>
 <li><code>report_schema_v2</code>: lets report/UI code consume both old and new phase payloads.</li>
 </ul>
 <h3 id="avoid-initially">Avoid Initially</h3>

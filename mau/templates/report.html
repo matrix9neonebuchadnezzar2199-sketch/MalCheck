@@ -94,7 +94,41 @@
   <pre>{{ report.phase2_dynamic | tojson }}</pre>
 
   <h2>Static / Ghidra (Phase 3)</h2>
-  <pre>{{ report.phase3_static | tojson }}</pre>
+  {% set st = report.phase3_static or {} %}
+  {% set sm = st.summary or {} %}
+  <table>
+    <tr><th>Engine</th><td>{{ st.engine | default('—') | e }}</td></tr>
+    <tr><th>Status</th><td>{{ st.status | default('—') | e }}</td></tr>
+    <tr><th>Functions</th><td>{{ sm.function_count | default('—') }}</td></tr>
+    <tr><th>Suspicious APIs</th><td>{{ sm.suspicious_api_count | default(0) }}</td></tr>
+    <tr><th>Truncated</th><td>{{ sm.truncated | default(false) }}</td></tr>
+    {% if sm.architecture %}<tr><th>Architecture</th><td>{{ sm.architecture | e }}</td></tr>{% endif %}
+    {% if sm.compiler %}<tr><th>Compiler</th><td>{{ sm.compiler | e }}</td></tr>{% endif %}
+    {% if st.error %}<tr><th>Error</th><td>{{ st.error | e }}</td></tr>{% endif %}
+  </table>
+  {% if sm.suspicious_apis_top %}
+  <h3>Suspicious APIs (top)</h3>
+  <table>
+    <tr><th>Name</th><th>Address</th><th>Seen from</th></tr>
+    {% for api in sm.suspicious_apis_top %}
+    <tr>
+      <td>{{ api.name | e }}</td>
+      <td>{{ api.address | e }}</td>
+      <td>{{ api.seen_from | e }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  {% if st.analysis_json %}
+  <details>
+    <summary>Full analysis_json (click to expand)</summary>
+    <pre>{{ st.analysis_json | tojson }}</pre>
+  </details>
+  {% endif %}
+  <details>
+    <summary>Raw phase3_static payload</summary>
+    <pre>{{ report.phase3_static | tojson }}</pre>
+  </details>
 
   <h2>Full JSON</h2>
   <pre>{{ json_pretty | e }}</pre>
