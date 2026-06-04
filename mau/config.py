@@ -34,7 +34,20 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "ollama": {"enabled": False, "base_url": "http://host.docker.internal:11434", "model": "llama3.2"},
     "report": {"html": True, "executive_summary_llm": False},
+    "intake": {
+        "enabled": True,
+        "passwords": ["", "infected", "malware", "virus"],
+        "max_extract_mb": 500,
+        "max_files": 200,
+        "max_nested_depth": 8,
+    },
 }
+
+
+def get_intake_config(cfg: dict[str, Any]) -> dict[str, Any]:
+    from mau.intake import get_intake_config as _gic
+
+    return _gic(cfg)
 
 
 def load_config(path: Optional[Union[str, Path]] = None) -> dict[str, Any]:

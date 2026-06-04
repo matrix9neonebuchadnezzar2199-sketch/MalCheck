@@ -8,12 +8,12 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from starlette.templating import Jinja2Templates
 
-from mau.phase_router import run_pipeline
+from mau.phase_router import run_pipeline_with_intake
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +50,10 @@ async def index(request: Request) -> HTMLResponse:
 
 
 @app.post("/analyze")
-async def analyze(file: UploadFile = File(...)) -> JSONResponse:
+async def analyze(
+    file: UploadFile = File(...),
+    archive_password: str = Form(default="infected"),
+) -> JSONResponse:
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename")
     safe_name = Path(file.filename).name
@@ -73,7 +76,11 @@ async def analyze(file: UploadFile = File(...)) -> JSONResponse:
         file.file.close()
 
     try:
-        out = run_pipeline(str(dest), sample_name=safe_name)
+        out = run_pipeline_with_intake(
+            str(dest),
+            sample_name=safe_name,
+            archive_password=archive_password.strip() or None,
+        )
     except Exception as e:
         log.exception("Pipeline failed")
         try:
@@ -84,6 +91,8 @@ async def analyze(file: UploadFile = File(...)) -> JSONResponse:
 
     report = out.get("report") or {}
     paths = report.get("_paths") or {}
+    intake = out.get("intake") or {}
+    malicious = report.get("malicious_findings") or []
     return JSONResponse(
         {
             "ok": True,
@@ -91,6 +100,14 @@ async def analyze(file: UploadFile = File(...)) -> JSONResponse:
             "report_json": paths.get("json"),
             "report_html": paths.get("html"),
             "verdict": report.get("verdict"),
+            "intake": {
+                "status": intake.get("status"),
+                "archive": intake.get("archive"),
+                "extracted_count": intake.get("extracted_count"),
+                "password_used": intake.get("password_used"),
+            },
+            "malicious_findings_count": len(malicious),
+            "malicious_findings": malicious[:20],
         }
     )
 

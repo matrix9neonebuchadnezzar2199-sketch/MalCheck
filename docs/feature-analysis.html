@@ -149,9 +149,9 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 <a class="current" href="feature-analysis.html">Feature Analysis</a>
     </aside>
     <main>
-      <div class="meta"><span class="badge">HTML canonical</span> Generated from the repository documentation source on 2026-06-02.</div>
+      <div class="meta"><span class="badge">HTML canonical</span> Updated 2026-06-04 (M-U intake/format/aggregate).</div>
       <h1 id="malcheck">MalCheck 機能分析・理想比較レポート</h1>
-<p>最終更新: 2026-06-02
+<p>最終更新: 2026-06-04
 対象コミット時点の実装（<code>mau/</code>, <code>scripts/remnux/analyze.py</code>, <code>web_ui/</code>, <code>compose/config/analyzer.yaml</code>）に基づく。</p>
 <p>このドキュメントは次の3点を扱う。</p>
 <ol>
@@ -203,8 +203,8 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
     root --&gt; intake[&quot;取り込み&quot;]
     intake --&gt; i1[&quot;ファイル保存 (samples)&quot;]
     intake --&gt; i2[&quot;ファイル名サニタイズ&quot;]
-    intake --x i3[&quot;アーカイブ自動解凍 ❌&quot;]
-    intake --x i4[&quot;拡張子/MIME ルーティング ❌&quot;]
+    intake --&gt; i3[&quot;アーカイブ自動解凍 ✅&quot;]
+    intake --&gt; i4[&quot;型別 surface ルーティング ✅&quot;]
 
     root --&gt; p1[&quot;Phase 1 表層解析 ✅&quot;]
     p1 --&gt; s1[&quot;MD5 / SHA256&quot;]
@@ -216,6 +216,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
     p1 --&gt; s7[&quot;YARA (rules_dir)&quot;]
     p1 --&gt; s8[&quot;capa&quot;]
     p1 --&gt; s9[&quot;scanner_results 正規化 + overall_risk&quot;]
+    p1 --&gt; s10[&quot;pefile / oletools / pdfid ✅&quot;]
 
     root --&gt; p2[&quot;Phase 2 動的解析 ⚠️&quot;]
     p2 --&gt; d1[&quot;既定 disabled&quot;]
@@ -229,7 +230,8 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
     p3 --x t4[&quot;CFG/コールグラフ/xref UI ❌ (MalCheck 側)&quot;]
 
     root --&gt; rep[&quot;レポート ✅&quot;]
-    rep --&gt; r1[&quot;JSON (schema 2.0)&quot;]
+    rep --&gt; r1[&quot;JSON (schema 2.1 集約)&quot;]
+    rep --&gt; r7[&quot;intake.children + malicious_findings ✅&quot;]
     rep --&gt; r2[&quot;HTML&quot;]
     rep --&gt; r3[&quot;ヒューリスティック verdict/score&quot;]
     rep --&gt; r4[&quot;IOC 集約&quot;]
@@ -237,8 +239,8 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
     rep --&gt; r6[&quot;Ollama 要約 (任意)&quot;]
 
     root --&gt; ui[&quot;Web UI ⚠️&quot;]
-    ui --&gt; u1[&quot;アップロード / Analyze&quot;]
-    ui --&gt; u2[&quot;verdict + raw JSON 表示&quot;]
+    ui --&gt; u1[&quot;アップロード / Analyze + archive_password&quot;]
+    ui --&gt; u2[&quot;verdict + malicious_findings 要約&quot;]
     ui --x u3[&quot;レポート HTML 直リンク配信 ❌&quot;]
     ui --x u4[&quot;履歴 / 検索 / 関数ブラウザ ❌&quot;]
 </pre>
@@ -497,20 +499,20 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 <tr>
 <td>取り込み</td>
 <td>MIME/拡張子ルーティング</td>
-<td>なし（単一経路）</td>
-<td>❌</td>
+<td><code>format_scanners</code> が PE/Office/PDF を選択</td>
+<td>✅</td>
 </tr>
 <tr>
 <td>取り込み</td>
 <td>アーカイブ自動解凍（pw <code>infected</code> 含む）</td>
-<td><strong>なし</strong></td>
-<td>❌</td>
+<td><code>mau/intake.py</code>（ZIP + AES via pyzipper、7z 任意）</td>
+<td>✅</td>
 </tr>
 <tr>
 <td>取り込み</td>
 <td>再帰展開 + 子検体ファンアウト</td>
-<td>なし</td>
-<td>❌</td>
+<td>ネスト上限付き BFS、親レポートに <code>intake.children[]</code></td>
+<td>✅</td>
 </tr>
 <tr>
 <td>表層</td>
@@ -533,14 +535,14 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 <tr>
 <td>表層</td>
 <td>PE/ELF ヘッダ解析（imports/exports/sections/Authenticode）</td>
-<td>なし（型は表示のみ）</td>
-<td>❌</td>
+<td>PE: <code>pefile</code> scanner（ELF 専用は未）</td>
+<td>⚠️</td>
 </tr>
 <tr>
 <td>表層</td>
 <td>ドキュメント解析（olevba/oletools, pdfid）</td>
-<td>なし</td>
-<td>❌</td>
+<td>Office/PDF format scanners</td>
+<td>✅</td>
 </tr>
 <tr>
 <td>静的</td>
@@ -593,14 +595,14 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 <tr>
 <td>レポート</td>
 <td>JSON + HTML</td>
-<td>あり（schema 2.0）</td>
+<td>schema <strong>2.1</strong>（親集約 + 悪性セクション）</td>
 <td>✅</td>
 </tr>
 <tr>
 <td>レポート</td>
 <td>verdict / スコアリング</td>
-<td>ヒューリスティック加点</td>
-<td>⚠️</td>
+<td>子の max score で親昇格、<code>malicious_findings</code></td>
+<td>✅</td>
 </tr>
 <tr>
 <td>レポート</td>
@@ -662,20 +664,15 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
         p4[&quot;IOC は URL/IP のみ&quot;]
     end
     subgraph gap[&quot;重大ギャップ (❌)&quot;]
-        g1[&quot;アーカイブ自動解凍&lt;br/&gt;(infected ZIP)&quot;]
-        g2[&quot;型別ルーティング&quot;]
-        g3[&quot;PE/Office/PDF 専用解析&quot;]
-        g4[&quot;ジョブ基盤/履歴/HTML配信&quot;]
+        g1[&quot;ジョブ基盤/履歴/HTML配信&quot;]
+        g2[&quot;ELF/Authenticode 深掘り&quot;]
+        g3[&quot;IOC エクスポート/STIX&quot;]
     end
 </pre>
 <hr>
 <h2 id="6">6. 優先度付き改善提案</h2>
 <p>理想との差分から、triage 実用性への寄与が大きい順:</p>
 <ol>
-<li><strong>アーカイブ自動解凍 + 型ルーティング（最優先）</strong>
-   <code>infected</code> を含むパスワード試行、安全展開（zip-bomb/トラバーサル対策）、展開ファイルごとの再帰解析。これが無いと現実の検体配布形態に対応できない。</li>
-<li><strong>型別の表層解析強化</strong>
-   PE ヘッダ解析（imports/exports/sections/imphash/Authenticode）、Office（olevba）、PDF（pdfid）。<code>file_type</code> を表示用から<strong>ルーティングキー</strong>へ昇格。</li>
 <li><strong>IOC 拡充 + エクスポート</strong>
    domain/email/registry/mutex 抽出、ssdeep/TLSH、STIX/MISP/CSV 出力（オフライン）。</li>
 <li><strong>レポート HTML をブラウザで開けるよう配信</strong>
@@ -690,9 +687,11 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 <hr>
 <h2 id="_2">付録: 参照したコード</h2>
 <ul>
-<li>取り込み/応答: <code>web_ui/app.py</code>（<code>/analyze</code>, <code>index</code>）</li>
-<li>パイプライン: <code>mau/phase_router.py</code>（<code>run_pipeline</code>）</li>
-<li>表層: <code>mau/surface_runner.py</code> + <code>scripts/remnux/analyze.py</code>（<code>analyze</code>）</li>
+<li>取り込み/応答: <code>web_ui/app.py</code>（<code>/analyze</code>, <code>archive_password</code>）</li>
+<li>アーカイブ: <code>mau/intake.py</code>（<code>process_intake</code>）</li>
+<li>パイプライン: <code>mau/phase_router.py</code>（<code>run_pipeline_with_intake</code>）</li>
+<li>表層: <code>mau/surface_runner.py</code> + <code>scripts/remnux/analyze.py</code> + <code>format_scanners.py</code></li>
+<li>悪性抽出/集約: <code>mau/findings_extract.py</code>, <code>generate_aggregated_report</code></li>
 <li>動的: <code>mau/dynamic_analyzer.py</code></li>
 <li>静的: <code>mau/static_analyzer.py</code></li>
 <li>レポート/判定: <code>mau/report_generator.py</code>（<code>calculate_verdict</code>, <code>generate_report</code>）</li>

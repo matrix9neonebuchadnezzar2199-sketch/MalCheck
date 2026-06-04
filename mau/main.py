@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from mau.phase_router import run_pipeline
+from mau.phase_router import run_pipeline_with_intake
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +44,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         default=os.environ.get("MAU_CONFIG", ""),
         help="Path to analyzer.yaml",
     )
+    parser.add_argument(
+        "--archive-password",
+        default=os.environ.get("MAU_ARCHIVE_PASSWORD", "infected"),
+        help="Password for encrypted archives (default: infected)",
+    )
     args = parser.parse_args(argv)
 
     samples_dir = Path(os.environ.get("SAMPLES_DIR", "/samples"))
@@ -59,7 +64,12 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     cfg_path = args.config.strip() or None
     try:
-        out = run_pipeline(str(sample_path), config_path=cfg_path, sample_name=sample_path.name)
+        out = run_pipeline_with_intake(
+            str(sample_path),
+            config_path=cfg_path,
+            sample_name=sample_path.name,
+            archive_password=args.archive_password.strip() or None,
+        )
     except Exception as e:
         log.exception("Pipeline failed: %s", e)
         return 1

@@ -113,6 +113,16 @@
     .label.benign { color: var(--done); background: rgba(63,185,80,0.15); }
     .label.suspicious { color: var(--warn); background: rgba(210,153,34,0.15); }
     .label.malicious { color: var(--danger); background: rgba(248,81,73,0.15); }
+    .label.high { color: var(--danger); background: rgba(248,81,73,0.2); }
+    .mal-banner {
+      border: 1px solid var(--danger); background: rgba(248,81,73,0.12);
+      border-radius: 8px; padding: 12px; margin: 12px 0; font-size: 13px;
+    }
+    .pw-row { margin-top: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .pw-row input {
+      background: var(--canvas-inset); border: 1px solid var(--border); color: var(--fg);
+      border-radius: 6px; padding: 6px 10px; font-size: 13px; width: 140px;
+    }
 
     .meta-row { display: flex; gap: 24px; flex-wrap: wrap; margin: 14px 0; }
     .meta-row .k { color: var(--fg-muted); font-size: 12px; }
@@ -191,11 +201,15 @@
             <input type="file" id="file" name="file" required />
             <span class="filename" id="fname">ファイルが選択されていません</span>
           </div>
+          <div class="pw-row">
+            <label for="archive_password">ZIP パスワード</label>
+            <input type="text" id="archive_password" name="archive_password" value="infected" autocomplete="off" />
+          </div>
           <div style="margin-top:14px;">
             <button class="btn" type="submit" id="submit">Analyze</button>
           </div>
         </form>
-        <p class="hint">表層解析（surface）＋（設定時）Ghidra 静的解析を実行します。動的解析は既定で無効です。</p>
+        <p class="hint">ZIP/7z は自動解凍（既定パスワード: infected）。表層＋PE/Office/PDF 専用スキャン＋（設定時）Ghidra 静的解析。</p>
       </div>
     </div>
 
@@ -209,6 +223,7 @@
         解析結果
       </div>
       <div class="box-body">
+        <div id="mal-banner" class="mal-banner" style="display:none;"></div>
         <div id="verdict-row"></div>
         <div class="meta-row" id="meta-row"></div>
         <div id="reasons-wrap" style="display:none;">
@@ -233,7 +248,7 @@
 
     function verdictClass(label) {
       if (!label) return "benign";
-      if (label.includes("malicious")) return "malicious";
+      if (label.includes("high_risk") || label.includes("malicious")) return "high";
       if (label.includes("suspicious")) return "suspicious";
       return "benign";
     }
@@ -267,9 +282,22 @@
         document.getElementById("verdict-row").innerHTML =
           `<span class="label ${cls}"><span class="dot"></span>${esc(label)}</span>`;
 
+        const intake = j.intake || {};
         document.getElementById("meta-row").innerHTML =
           `<div><div class="k">sample</div><div class="val">${esc(j.sample || "-")}</div></div>` +
-          `<div><div class="k">score</div><div class="val">${esc(verdict.score ?? 0)}</div></div>`;
+          `<div><div class="k">score</div><div class="val">${esc(verdict.score ?? 0)}</div></div>` +
+          (intake.archive ? `<div><div class="k">extracted</div><div class="val">${esc(intake.extracted_count ?? 0)} files (pw: ${esc(intake.password_used || "-")})</div></div>` : "");
+
+        const mal = j.malicious_findings || [];
+        const banner = document.getElementById("mal-banner");
+        if (mal.length > 0) {
+          banner.style.display = "block";
+          banner.innerHTML = `<strong>悪性指標 ${esc(j.malicious_findings_count ?? mal.length)} 件</strong><ul>` +
+            mal.slice(0, 8).map(m => `<li>[${esc(m.severity)}] ${esc(m.child)} — ${esc(m.summary)}</li>`).join("") +
+            `</ul>`;
+        } else {
+          banner.style.display = "none";
+        }
 
         const reasons = verdict.reasons || [];
         const rw = document.getElementById("reasons-wrap");

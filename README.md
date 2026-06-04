@@ -136,6 +136,18 @@ docker compose -f docker-compose.usb.yml --env-file compose\.env.runtime down
 
 ---
 
+## Surface イメージの再ビルド（M-U2 以降）
+
+PE/Office/PDF 用の `pefile` / `oletools` / `pdfid` を surface コンテナに含めます。依存を更新したらリポジトリルートで:
+
+```text
+docker compose build surface-analyzer
+```
+
+（`containers/surface/Dockerfile` は `scripts/remnux/format_scanners.py` を `/scripts/` に COPY します。）
+
+---
+
 ## Ghidra イメージのビルド
 
 Ghidra ZIP 配置後、静的解析イメージをビルドします。
@@ -165,6 +177,7 @@ docker build -t ghidra-headless:latest -f build/ghidra-headless/Dockerfile build
 - `report.executive_summary_llm`
 - `ollama.base_url`
 - `ollama.model`
+- `intake.enabled`, `intake.passwords`, `intake.max_extract_mb`
 
 ---
 

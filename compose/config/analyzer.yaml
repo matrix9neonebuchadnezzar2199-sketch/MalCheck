@@ -27,3 +27,10 @@ ollama:
 report:
   html: true
   executive_summary_llm: false
+
+intake:
+  enabled: true
+  passwords: ["", "infected", "malware", "virus"]
+  max_extract_mb: 500
+  max_files: 200
+  max_nested_depth: 8

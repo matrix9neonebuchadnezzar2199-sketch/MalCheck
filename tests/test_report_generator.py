@@ -42,7 +42,7 @@ def test_generate_report_json(tmp_path):
         executive_summary_llm=False,
     )
     assert "_paths" in r
-    assert r["meta"]["schema_version"] == "2.0"
+    assert r["meta"]["schema_version"] == "2.1"
     assert r["phase_status"]["surface"] == "completed"
     assert r["phase_status"]["dynamic"] == "skipped"
     assert r["phase_status"]["static"] == "skipped"

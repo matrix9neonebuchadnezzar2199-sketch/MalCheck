@@ -149,9 +149,9 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 <a href="feature-analysis.html">Feature Analysis</a>
     </aside>
     <main>
-      <div class="meta"><span class="badge">HTML canonical</span> Generated from the repository documentation source on 2026-06-02.</div>
+      <div class="meta"><span class="badge">HTML canonical</span> Updated 2026-06-04 (M-U urgent track).</div>
       <h1 id="malcheck-development-milestones">MalCheck Development Milestones</h1>
-<p>Last updated: 2026-06-02</p>
+<p>Last updated: 2026-06-04</p>
 <h2 id="strategy">Strategy</h2>
 <p>Build MalCheck as a phase-based malware analysis orchestrator. Do not attempt to complete surface, static, dynamic, UI, reporting, and USB distribution in one pass. Each milestone must leave the repository in a working, testable state.</p>
 <p>Priority order:</p>
@@ -164,6 +164,19 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 <li>Add optional sandbox integration.</li>
 <li>Harden packaging and offline deployment.</li>
 </ol>
+<h2 id="urgent-track-m-u1-m-u4">Urgent track (M-U1–M-U4) — completed 2026-06-04</h2>
+<p>Inserted ahead of Milestone 2 (Ghidra JSON upgrade). Restores real-world sample intake (password ZIP) and format-specific surface scanners before deep static work.</p>
+<table>
+<thead><tr><th>ID</th><th>Scope</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><strong>M-U1</strong></td><td><code>mau/intake.py</code> — safe ZIP/7z extract, password trial (<code>infected</code> etc.), nested limits, OOXML skip; wired to Web UI, CLI, <code>run_pipeline_with_intake</code></td><td>✅</td></tr>
+<tr><td><strong>M-U2</strong></td><td><code>scripts/remnux/format_scanners.py</code> — pefile / oletools / pdfid in surface; <code>containers/surface/requirements.txt</code> + Dockerfile COPY</td><td>✅</td></tr>
+<tr><td><strong>M-U3</strong></td><td>Report schema <strong>2.1</strong> — <code>intake.children[]</code>, <code>malicious_findings</code>, parent verdict rollup, HTML warning banner</td><td>✅</td></tr>
+<tr><td><strong>M-U4</strong></td><td>Web UI <code>archive_password</code> (default <code>infected</code>), malicious summary; docs updated</td><td>✅</td></tr>
+</tbody>
+</table>
+<p>Verification: <code>pytest tests -v</code> (includes encrypted ZIP fixture). After pulling M-U2, rebuild the surface image: <code>docker compose build surface-analyzer</code> (context: repo root, see <code>containers/surface/Dockerfile</code>).</p>
+<p>Resume the original roadmap at <a href="#milestone-2-static-analysis-upgrade">Milestone 2</a>.</p>
 <h2 id="milestone-0-foundation-documents-and-contracts">Milestone 0: Foundation Documents and Contracts</h2>
 <p>Purpose: make the intended direction unambiguous before implementation begins.</p>
 <p>Scope:</p>

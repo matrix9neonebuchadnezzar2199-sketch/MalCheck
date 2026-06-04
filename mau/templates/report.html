@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -10,24 +10,69 @@
     h2 { font-size: 1.1rem; margin-top: 1.5rem; }
     .meta { color: #555; font-size: .9rem; }
     .verdict { padding: .75rem 1rem; background: #f4f4f4; border-radius: 6px; margin: 1rem 0; }
+    .verdict.danger { background: #fde8e8; border: 1px solid #f85149; }
+    .verdict.warn { background: #fff8e6; border: 1px solid #d29922; }
+    .banner { padding: 1rem; background: #fde8e8; border: 2px solid #cf222e; border-radius: 8px; margin: 1rem 0; }
+    .banner h2 { margin: 0 0 .5rem; color: #cf222e; font-size: 1.15rem; }
     pre { background: #f8f8f8; padding: 1rem; overflow: auto; max-height: 400px; font-size: .8rem; }
-    table { border-collapse: collapse; width: 100%; font-size: .9rem; }
-    th, td { border: 1px solid #ddd; padding: .4rem .6rem; text-align: left; }
+    table { border-collapse: collapse; width: 100%; font-size: .9rem; margin: .5rem 0 1rem; }
+    th, td { border: 1px solid #ddd; padding: .4rem .6rem; text-align: left; vertical-align: top; }
     th { background: #eee; }
+    .child { margin: 1rem 0; padding: .75rem; border: 1px solid #ddd; border-radius: 6px; }
   </style>
 </head>
 <body>
   <h1>Malware Unified Analyzer Report</h1>
   <p class="meta">Sample: <strong>{{ report.meta.sample_name | e }}</strong><br/>
-     Timestamp: {{ report.meta.timestamp | e }}</p>
+     Schema: {{ report.meta.schema_version | e }} · {{ report.meta.timestamp | e }}</p>
 
-  <div class="verdict">
+  {% if report.malicious_findings and report.malicious_findings|length > 0 %}
+  <div class="banner">
+    <h2>検出された悪性指標（{{ report.malicious_findings|length }} 件）</h2>
+    <p>以下は自動解析で検出された疑わしい挙動・シグネチャです。証拠として記録されています。</p>
+    <table>
+      <tr><th>ファイル</th><th>重要度</th><th>ソース</th><th>概要</th></tr>
+      {% for m in report.malicious_findings %}
+      <tr>
+        <td>{{ m.child | e }}</td>
+        <td>{{ m.severity | e }}</td>
+        <td>{{ m.source | e }}</td>
+        <td>{{ m.summary | e }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="verdict {% if report.verdict.label == 'high_risk_indicators' %}danger{% elif report.verdict.label == 'suspicious' %}warn{% endif %}">
     <strong>Verdict</strong>: {{ report.verdict.label | e }}
     (score {{ report.verdict.score }})
     {% if report.verdict.reasons %}
     <ul>{% for r in report.verdict.reasons %}<li>{{ r | e }}</li>{% endfor %}</ul>
     {% endif %}
   </div>
+
+  {% if report.intake %}
+  <h2>Intake（アーカイブ展開）</h2>
+  <table>
+    <tr><th>Status</th><td>{{ report.intake.status | e }}</td></tr>
+    <tr><th>Archive</th><td>{{ report.intake.archive | e }}</td></tr>
+    <tr><th>Type</th><td>{{ report.intake.archive_type | e }}</td></tr>
+    <tr><th>Password used</th><td>{{ report.intake.password_used | e }}</td></tr>
+    <tr><th>Extracted files</th><td>{{ report.intake.extracted_count | e }}</td></tr>
+  </table>
+  {% if report.intake.children %}
+  {% for ch in report.intake.children %}
+  <div class="child">
+    <strong>{{ ch.path | e }}</strong>
+    — verdict: {{ ch.verdict.label | e }} ({{ ch.verdict.score }})
+    {% if ch.highlights %}
+    <ul>{% for h in ch.highlights %}<li>[{{ h.source | e }}] {{ h.description | e }}</li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+  {% endif %}
 
   {% if report.executive_summary %}
   <h2>Executive summary</h2>
@@ -42,7 +87,7 @@
     <tr><td>IPs</td><td>{{ (report.iocs.ips or []) | join(', ') | e }}</td></tr>
   </table>
 
-  <h2>Surface (Phase 1)</h2>
+  <h2>Surface (Phase 1) — primary</h2>
   <pre>{{ report.phase1_surface | tojson }}</pre>
 
   <h2>Dynamic (Phase 2)</h2>

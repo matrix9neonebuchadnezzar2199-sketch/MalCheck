@@ -290,6 +290,14 @@ def analyze(sample_path: str) -> dict[str, Any]:
         if isinstance(m, dict) and m.get("rule"):
             result["mitre"].append({"source": "capa", "rule": m.get("rule")})
 
+    try:
+        from format_scanners import run_format_scanners
+
+        for fmt in run_format_scanners(path, result.get("file_type")):
+            result["scanner_results"].append(fmt)
+    except ImportError:
+        pass
+
     result["overall_risk"] = _risk_max(*(str(x.get("risk", "safe")) for x in result["scanner_results"]))
     return result
 
