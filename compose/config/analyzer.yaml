@@ -9,6 +9,10 @@ phases:
   dynamic:
     enabled: false
     timeout_sec: 120
+  unpack:
+    enabled: true
+    timeout_sec: 180
+    max_attempts_per_sample: 2
   static:
     enabled: true
     timeout_sec: 600

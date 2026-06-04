@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from mau.surface_schema import normalize_scanner_results
 
@@ -54,12 +54,65 @@ def extract_highlights(surface: dict[str, Any]) -> list[dict[str, Any]]:
     return out[:50]
 
 
+_ANTI_SURFACE_RULES = frozenset({
+    "pe_anti_analysis_imports",
+    "pe_tls_callbacks",
+    "capa_anti_analysis",
+})
+
+
+def extract_static_highlights(static: dict[str, Any]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    if not isinstance(static, dict):
+        return out
+    summ = static.get("summary")
+    if not isinstance(summ, dict):
+        return out
+    for sig in summ.get("top_anti_analysis_signals") or []:
+        if not isinstance(sig, dict):
+            continue
+        sev = str(sig.get("severity") or "medium").lower()
+        if _RISK_ORD.get(sev, 0) < _RISK_ORD["medium"] and sev != "high":
+            if sev not in ("high", "critical"):
+                sev = "medium"
+        out.append(
+            {
+                "source": "static",
+                "rule": sig.get("id"),
+                "risk": sev if sev in _MEDIUM_PLUS else "medium",
+                "description": f"{sig.get('label')} ({sig.get('function')} @ {sig.get('address')})",
+            }
+        )
+    return out[:30]
+
+
 def extract_malicious_findings(
     child_name: str,
     surface: dict[str, Any],
+    static: Optional[dict[str, Any]] = None,
 ) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     for h in extract_highlights(surface):
+        rule = str(h.get("rule") or "")
+        if rule in _ANTI_SURFACE_RULES:
+            h = dict(h)
+            h["risk"] = "high" if rule == "pe_anti_analysis_imports" else h.get("risk", "medium")
+        sev = _finding_severity(str(h.get("risk", "medium")))
+        if sev == "info":
+            continue
+        findings.append(
+            {
+                "child": child_name,
+                "severity": sev,
+                "source": h.get("source"),
+                "summary": h.get("description") or h.get("rule"),
+                "evidence": {
+                    "rule": h.get("rule"),
+                    "risk": h.get("risk"),
+                },
+            }
+        )
+    for h in extract_static_highlights(static or {}):
         sev = _finding_severity(str(h.get("risk", "medium")))
         if sev == "info":
             continue

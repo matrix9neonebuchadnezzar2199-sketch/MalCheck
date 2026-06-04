@@ -26,6 +26,21 @@ _OFFICE_SUFFIX = {
 }
 _PDF_SUFFIX = {".pdf"}
 
+_ANTI_ANALYSIS_IMPORTS = {
+    "IsDebuggerPresent",
+    "CheckRemoteDebuggerPresent",
+    "NtQueryInformationProcess",
+    "ZwQueryInformationProcess",
+    "OutputDebugStringA",
+    "OutputDebugStringW",
+    "GetTickCount",
+    "QueryPerformanceCounter",
+    "Sleep",
+    "NtSetInformationThread",
+    "FindWindowA",
+    "FindWindowW",
+}
+
 _SUSPICIOUS_IMPORTS = {
     "VirtualAlloc",
     "VirtualAllocEx",
@@ -33,7 +48,6 @@ _SUSPICIOUS_IMPORTS = {
     "WriteProcessMemory",
     "CreateRemoteThread",
     "NtUnmapViewOfSection",
-    "IsDebuggerPresent",
     "GetProcAddress",
     "LoadLibraryA",
     "LoadLibraryW",
@@ -47,6 +61,8 @@ _SUSPICIOUS_IMPORTS = {
     "CryptEncrypt",
     "CryptDecrypt",
 }
+
+_PACKER_SECTION_HINTS = (".upx", "upx0", "upx1", ".themida", ".vmp", ".aspack", ".ndata")
 
 _PDF_HIGH = {"/JS", "/JavaScript", "/Launch"}
 _PDF_MEDIUM = {"/OpenAction", "/AA", "/RichMedia", "/XFA"}
@@ -109,6 +125,7 @@ def _scan_pe(path: Path) -> dict[str, Any]:
 
     for section in pe.sections:
         sec_name = section.Name.decode("utf-8", errors="replace").strip("\x00")
+        sec_lower = sec_name.lower()
         ent = float(section.get_entropy())
         if ent > 7.0:
             findings.append(
@@ -119,15 +136,76 @@ def _scan_pe(path: Path) -> dict[str, Any]:
                     "details": {"name": sec_name, "entropy": round(ent, 3)},
                 }
             )
+        if any(hint in sec_lower for hint in _PACKER_SECTION_HINTS):
+            findings.append(
+                {
+                    "rule": "pe_packer_section_name",
+                    "description": f"Section name suggests packer: {sec_name}",
+                    "risk": "medium",
+                    "details": {"name": sec_name},
+                }
+            )
 
+    try:
+        if hasattr(pe, "DIRECTORY_ENTRY_TLS") and pe.DIRECTORY_ENTRY_TLS:
+            metadata["has_tls"] = True
+            findings.append(
+                {
+                    "rule": "pe_tls_callbacks",
+                    "description": "TLS directory present (callbacks may run before entry)",
+                    "risk": "medium",
+                    "details": {},
+                }
+            )
+    except Exception:
+        pass
+
+    try:
+        chars = pe.OPTIONAL_HEADER
+        dll_chars = getattr(chars, "DllCharacteristics", 0) or 0
+        metadata["dll_characteristics"] = hex(dll_chars)
+        if not (dll_chars & 0x0040):
+            findings.append(
+                {
+                    "rule": "pe_aslr_disabled",
+                    "description": "ASLR not enabled (IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE)",
+                    "risk": "low",
+                    "details": {"dll_characteristics": hex(dll_chars)},
+                }
+            )
+        if not (dll_chars & 0x0100):
+            findings.append(
+                {
+                    "rule": "pe_dep_disabled",
+                    "description": "DEP/NX not enabled (IMAGE_DLLCHARACTERISTICS_NX_COMPAT)",
+                    "risk": "low",
+                    "details": {"dll_characteristics": hex(dll_chars)},
+                }
+            )
+    except Exception:
+        pass
+
+    anti_analysis: list[str] = []
     suspicious: list[str] = []
     if hasattr(pe, "DIRECTORY_ENTRY_IMPORT") and pe.DIRECTORY_ENTRY_IMPORT:
         for entry in pe.DIRECTORY_ENTRY_IMPORT:
             for imp in entry.imports:
                 if imp and imp.name:
                     fn = imp.name.decode("utf-8", errors="replace")
-                    if fn in _SUSPICIOUS_IMPORTS:
+                    if fn in _ANTI_ANALYSIS_IMPORTS:
+                        anti_analysis.append(fn)
+                    elif fn in _SUSPICIOUS_IMPORTS:
                         suspicious.append(fn)
+    if anti_analysis:
+        metadata["anti_analysis_imports"] = anti_analysis
+        findings.append(
+            {
+                "rule": "pe_anti_analysis_imports",
+                "description": f"Anti-analysis API imports: {', '.join(anti_analysis[:10])}",
+                "risk": "high" if len(anti_analysis) >= 2 else "medium",
+                "details": {"imports": anti_analysis},
+            }
+        )
     if suspicious:
         metadata["suspicious_imports"] = suspicious
         risk = "high" if len(suspicious) >= 5 else "medium"

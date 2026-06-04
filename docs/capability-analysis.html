@@ -145,10 +145,11 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
       <a href="development-diary.html">Development Diary</a>
       <a href="feature-analysis.html">Feature Analysis</a>
       <a class="current" href="capability-analysis.html">Capability Matrix</a>
+      <a href="re-analysis-pipeline.html">RE Pipeline</a>
       <a href="static-analysis-schema.html">Static JSON Schema</a>
     </aside>
     <main>
-      <div class="meta"><span class="badge">HTML canonical</span> Baseline: main @ b0616b4 · Last updated: 2026-06-05</div>
+      <div class="meta"><span class="badge">HTML canonical</span> Last updated: 2026-06-05 (Milestone RE)</div>
       <h1 id="title">MalCheck 機能分析（表層 / 動的 / 静的）</h1>
       <p>表層・動的・静的の3観点で<strong>実装済み機能</strong>と<strong>今後の推奨機能</strong>を一覧化する正本です。フロー図・シーケンスの詳細は <a href="feature-analysis.html">Feature Analysis</a> を参照。</p>
       <p><strong>凡例:</strong> <span class="ok">✅ 実装済み</span> / <span class="warn">⚠️ 部分的</span>（要 Docker・要イメージ・hook のみ等） / <span class="bad">❌ 未実装</span></p>
@@ -198,7 +199,10 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
           <tr><td>パッカー</td><td>Detect It Easy（diec / die、あれば）</td></tr>
           <tr><td>シグネチャ</td><td>YARA（<code>rules/yara</code>、失敗は記録のみ）</td></tr>
           <tr><td>能力</td><td>capa JSON（インストール時）</td></tr>
-          <tr><td>型別</td><td><strong>pefile</strong> — imports / sections / entropy 等</td></tr>
+          <tr><td>型別</td><td><strong>pefile</strong> — imports / sections / entropy / TLS / anti-debug imports</td></tr>
+          <tr><td>耐解析</td><td>capa anti-analysis / anti-vm 要約（<code>capa_anti_analysis</code>）</td></tr>
+          <tr><td>難読化 strings</td><td>FLOSS（パック疑い PE、オプション）</td></tr>
+          <tr><td>アンパック</td><td>Phase 1b — UPX / unipacker（<code>mau/unpack_stage.py</code>）</td></tr>
           <tr><td>型別</td><td><strong>oletools</strong> — VBA / oleid（Office）</td></tr>
           <tr><td>型別</td><td><strong>pdfid</strong> — <code>/JavaScript</code> 等キーワード</td></tr>
           <tr><td>正規化</td><td><code>scanner_results[]</code> + <code>overall_risk</code></td></tr>
@@ -214,7 +218,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
           <tr><td>domain / email / registry / mutex 抽出</td><td class="bad">❌</td></tr>
           <tr><td>ELF 専用ヘッダ解析</td><td class="bad">❌</td></tr>
           <tr><td>Authenticode / 署名検証</td><td class="bad">❌</td></tr>
-          <tr><td>FLOSS / 難読化 strings 強化</td><td class="bad">❌</td></tr>
+          <tr><td>FLOSS / 難読化 strings 強化</td><td class="warn">⚠️</td></tr>
           <tr><td>Qu1cksc0pe 統合</td><td class="bad">❌</td></tr>
           <tr><td>LIEF / binwalk / APK 専用</td><td class="bad">❌</td></tr>
           <tr><td>YARA / capa 重複の整理</td><td class="warn">⚠️ M1 残</td></tr>
@@ -259,6 +263,9 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
           <tr><td>JSON</td><td>プログラム <code>call_graph</code>（上限付き）</td></tr>
           <tr><td>JSON</td><td>関数 xrefs（callers / callees）</td></tr>
           <tr><td>JSON</td><td><code>decompile_insights</code>（ヒューリスティック）</td></tr>
+          <tr><td>集約</td><td><code>mau/re_insights</code> — anti-analysis / obfuscation ロールアップ</td></tr>
+          <tr><td>レポート</td><td><code>re_analysis</code> セクション（表層 + 静的）</td></tr>
+          <tr><td>OEP</td><td><code>MAU_OEP_RVA</code> + <code>unpack_meta</code> in <code>analysis.json</code></td></tr>
           <tr><td>JSON</td><td><code>suspicious_apis</code> ロールアップ</td></tr>
           <tr><td>JSON</td><td><code>truncated</code> フラグ</td></tr>
           <tr><td>統合</td><td><code>mau/static_normalize.py</code> → <code>phase3_static.analysis_json</code> + <code>summary</code></td></tr>
@@ -278,7 +285,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
           <tr><td>CFG / グラフ / xref の React 可視化 UI</td><td class="bad">❌ 意図的に非移植</td></tr>
           <tr><td>検体間 diff / バイナリ比較</td><td class="bad">❌</td></tr>
           <tr><td>シンボルリネーム・型編集 UI</td><td class="bad">❌</td></tr>
-          <tr><td>unipacker 事前展開</td><td class="bad">❌</td></tr>
+          <tr><td>unipacker 事前展開</td><td class="warn">⚠️</td></tr>
           <tr><td>Ghidra 以外（IDA batch 等）</td><td class="bad">❌</td></tr>
         </tbody>
       </table>

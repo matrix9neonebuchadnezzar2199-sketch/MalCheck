@@ -79,6 +79,42 @@
   <pre>{{ report.executive_summary | e }}</pre>
   {% endif %}
 
+  {% set re = report.re_analysis or {} %}
+  {% if re.surface_anti_analysis or re.static_anti_analysis or re.obfuscation_stats %}
+  <h2>耐解析 / 難読化（RE）</h2>
+  {% if re.surface_anti_analysis %}
+  <h3>表層（PE / capa）</h3>
+  <table>
+    <tr><th>ソース</th><th>ルール</th><th>説明</th></tr>
+    {% for h in re.surface_anti_analysis %}
+    <tr>
+      <td>{{ h.source | e }}</td>
+      <td>{{ h.rule | e }}</td>
+      <td>{{ h.description | e }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  {% if re.static_anti_analysis %}
+  <h3>静的（Ghidra decompile_insights）</h3>
+  <table>
+    <tr><th>重要度</th><th>ID</th><th>関数</th><th>説明</th></tr>
+    {% for s in re.static_anti_analysis %}
+    <tr>
+      <td>{{ s.severity | e }}</td>
+      <td>{{ s.id | e }}</td>
+      <td>{{ s.function | e }} @ {{ s.address | e }}</td>
+      <td>{{ s.label | e }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  {% if re.obfuscation_stats %}
+  <h3>難読化統計</h3>
+  <pre>{{ re.obfuscation_stats | tojson }}</pre>
+  {% endif %}
+  {% endif %}
+
   <h2>IOCs</h2>
   <table>
     <tr><th>Type</th><th>Values</th></tr>
@@ -86,6 +122,20 @@
     <tr><td>URLs</td><td>{{ (report.iocs.urls or []) | join(', ') | e }}</td></tr>
     <tr><td>IPs</td><td>{{ (report.iocs.ips or []) | join(', ') | e }}</td></tr>
   </table>
+
+  {% set un = report.phase1b_unpack or {} %}
+  {% if un and un.status not in ('skipped', 'not_attempted', none) %}
+  <h2>Unpack (Phase 1b)</h2>
+  <table>
+    <tr><th>Status</th><td>{{ un.status | e }}</td></tr>
+    {% if un.tool %}<tr><th>Tool</th><td>{{ un.tool | e }}</td></tr>{% endif %}
+    {% if un.packer_hint %}<tr><th>Packer hint</th><td>{{ un.packer_hint | e }}</td></tr>{% endif %}
+    {% if un.oep_rva %}<tr><th>OEP (RVA)</th><td>{{ un.oep_rva | e }}</td></tr>{% endif %}
+    {% if un.oep_va %}<tr><th>OEP (VA)</th><td>{{ un.oep_va | e }}</td></tr>{% endif %}
+    {% if un.unpacked_path %}<tr><th>Unpacked path</th><td>{{ un.unpacked_path | e }}</td></tr>{% endif %}
+    {% if un.error %}<tr><th>Note</th><td>{{ un.error | e }}</td></tr>{% endif %}
+  </table>
+  {% endif %}
 
   <h2>Surface (Phase 1) — primary</h2>
   <pre>{{ report.phase1_surface | tojson }}</pre>
@@ -104,6 +154,7 @@
     <tr><th>Truncated</th><td>{{ sm.truncated | default(false) }}</td></tr>
     {% if sm.architecture %}<tr><th>Architecture</th><td>{{ sm.architecture | e }}</td></tr>{% endif %}
     {% if sm.compiler %}<tr><th>Compiler</th><td>{{ sm.compiler | e }}</td></tr>{% endif %}
+    {% if sm.anti_analysis_count is defined %}<tr><th>Anti-analysis signals</th><td>{{ sm.anti_analysis_count | default(0) }}</td></tr>{% endif %}
     {% if st.error %}<tr><th>Error</th><td>{{ st.error | e }}</td></tr>{% endif %}
   </table>
   {% if sm.suspicious_apis_top %}

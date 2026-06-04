@@ -108,6 +108,88 @@ def _capa_scan(sample: Path) -> list[dict[str, Any]]:
     return []
 
 
+_CAPA_ANTI_KEYWORDS = (
+    "anti-analysis",
+    "anti analysis",
+    "anti-debug",
+    "anti debug",
+    "anti-vm",
+    "anti vm",
+    "anti-sandbox",
+    "debugger",
+    "virtualization",
+)
+
+
+def _capa_anti_analysis_matches(capa_matches: list[Any]) -> list[dict[str, Any]]:
+    """Filter capa rows whose rule/namespace suggests anti-analysis or anti-VM."""
+    out: list[dict[str, Any]] = []
+    for m in capa_matches:
+        if not isinstance(m, dict):
+            continue
+        rule = str(m.get("rule") or m.get("name") or "")
+        ns = str(m.get("namespace") or m.get("meta", {}).get("namespace") if isinstance(m.get("meta"), dict) else "")
+        blob = f"{rule} {ns}".lower()
+        if any(kw in blob for kw in _CAPA_ANTI_KEYWORDS):
+            out.append(m)
+    return out[:25]
+
+
+_PE_SUFFIX = {".exe", ".dll", ".sys", ".scr", ".ocx", ".cpl"}
+
+
+def _is_pe_sample(path: Path, file_type: Optional[str]) -> bool:
+    if path.suffix.lower() in _PE_SUFFIX:
+        return True
+    ft = (file_type or "").lower()
+    return "executable" in ft or "dosexec" in ft or "msdownload" in ft
+
+
+def _packer_suspected(result: dict[str, Any]) -> bool:
+    packer = result.get("packer") or {}
+    if isinstance(packer, dict) and packer.get("detected"):
+        return True
+    ent = result.get("entropy")
+    if isinstance(ent, (int, float)) and ent > 7.2:
+        return True
+    for sr in result.get("scanner_results") or []:
+        if not isinstance(sr, dict):
+            continue
+        for f in sr.get("findings") or []:
+            if isinstance(f, dict) and f.get("rule") in (
+                "pe_high_entropy_section",
+                "pe_packer_section_name",
+                "high_entropy",
+            ):
+                return True
+    die = packer.get("detail") if isinstance(packer, dict) else None
+    if isinstance(die, dict):
+        raw = str(die.get("raw") or "").lower()
+        if raw and any(x in raw for x in ("upx", "pack", "themida", "vmprotect", "aspack")):
+            return True
+    return False
+
+
+def _floss_scan(sample: Path, timeout: int = 120) -> dict[str, Any]:
+    """Run FLOSS CLI when installed; return scanner-shaped metadata."""
+    for cmd in (
+        ["floss", str(sample)],
+        [sys.executable, "-m", "floss", str(sample)],
+    ):
+        out, code = _run_cmd(cmd, timeout=timeout)
+        if code == 0 and out:
+            lines = [ln.strip() for ln in out.splitlines() if ln.strip() and not ln.startswith("---")]
+            decoded = [ln for ln in lines if len(ln) >= 4 and not ln.startswith("[")][:500]
+            return {
+                "success": True,
+                "strings": decoded,
+                "stdout_sample": out[:2000],
+            }
+        if code == -1:
+            continue
+    return {"success": False, "error": "floss not installed or timed out"}
+
+
 def _die_scan(sample: Path) -> Optional[dict[str, Any]]:
     for exe in ("diec", "die", "detect-it-easy"):
         out, code = _run_cmd([exe, str(sample)], timeout=60)
@@ -290,6 +372,26 @@ def analyze(sample_path: str) -> dict[str, Any]:
         if isinstance(m, dict) and m.get("rule"):
             result["mitre"].append({"source": "capa", "rule": m.get("rule")})
 
+    anti_capa = _capa_anti_analysis_matches(result["capa_matches"])
+    if anti_capa:
+        result["scanner_results"].append(
+            _build_scanner_result(
+                "capa_anti_analysis",
+                success=True,
+                risk="medium",
+                findings=[
+                    {
+                        "rule": str(m.get("rule", "capa_anti_analysis")),
+                        "description": "capa anti-analysis / anti-VM capability",
+                        "risk": "medium",
+                        "details": m if isinstance(m, dict) else {"value": m},
+                    }
+                    for m in anti_capa[:15]
+                ],
+                metadata={"total_anti_analysis_matches": len(anti_capa)},
+            )
+        )
+
     try:
         from format_scanners import run_format_scanners
 
@@ -297,6 +399,44 @@ def analyze(sample_path: str) -> dict[str, Any]:
             result["scanner_results"].append(fmt)
     except ImportError:
         pass
+
+    if _is_pe_sample(path, result.get("file_type")) and _packer_suspected(result):
+        floss_timeout = int(os.environ.get("MAU_FLOSS_TIMEOUT", "120"))
+        floss = _floss_scan(path, timeout=floss_timeout)
+        if floss.get("success"):
+            decoded = floss.get("strings") or []
+            merged = list(dict.fromkeys((result.get("strings_sample") or []) + decoded))
+            result["strings_sample"] = merged[:120]
+            url_re = re.compile(r"https?://[^\s\x00-\x1f\"'<>]+|ftp://[^\s\x00-\x1f\"'<>]+", re.I)
+            ip_re = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+            for s in decoded[:200]:
+                result["urls"] = sorted(set(result.get("urls") or []) | set(url_re.findall(s)[:5]))[:50]
+                result["ips"] = sorted(set(result.get("ips") or []) | set(ip_re.findall(s)[:5]))[:50]
+            result["scanner_results"].append(
+                _build_scanner_result(
+                    "floss",
+                    success=True,
+                    risk="low" if decoded else "safe",
+                    findings=[
+                        {
+                            "rule": "floss_decoded_strings",
+                            "description": f"FLOSS extracted {len(decoded)} decoded strings (sample)",
+                            "risk": "low",
+                            "details": {"count": len(decoded), "sample": decoded[:20]},
+                        }
+                    ],
+                    metadata={"string_count": len(decoded)},
+                )
+            )
+        else:
+            result["scanner_results"].append(
+                _build_scanner_result(
+                    "floss",
+                    success=False,
+                    risk="safe",
+                    error=str(floss.get("error") or "floss skipped"),
+                )
+            )
 
     result["overall_risk"] = _risk_max(*(str(x.get("risk", "safe")) for x in result["scanner_results"]))
     return result

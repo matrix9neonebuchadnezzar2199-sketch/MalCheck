@@ -7,6 +7,8 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
+from mau.re_insights import enrich_summary
+
 log = logging.getLogger(__name__)
 
 
@@ -107,7 +109,7 @@ def load_static_outputs(static_dir: Path, *, image: str = "") -> dict[str, Any]:
     metadata = _read_json(static_dir / "metadata.json")
 
     if analysis_json:
-        summary = build_summary(analysis_json)
+        summary = enrich_summary(build_summary(analysis_json), analysis_json)
         if not decompiled_c:
             decompiled_c = _decompiled_c_from_analysis(analysis_json)
         if not metadata:

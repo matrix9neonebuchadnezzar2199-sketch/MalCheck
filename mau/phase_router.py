@@ -23,6 +23,7 @@ from mau.report_generator import calculate_verdict, generate_aggregated_report, 
 from mau.static_analyzer import run_static_analysis
 from mau.static_normalize import static_failed
 from mau.surface_runner import run_surface_analysis
+from mau.unpack_stage import run_unpack_stage
 
 log = logging.getLogger(__name__)
 
@@ -40,6 +41,82 @@ def _err_payload(exc: Exception) -> dict[str, Any]:
 
 def _child_verdict(surface: dict[str, Any], dynamic: dict[str, Any], static: dict[str, Any]) -> dict[str, Any]:
     return calculate_verdict(surface, dynamic, static)
+
+
+def _run_phases_for_sample(
+    sample_path: str,
+    cfg: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Surface → unpack → dynamic → static for one file."""
+    sp = get_phase_config(cfg, "surface")
+    up = get_phase_config(cfg, "unpack")
+    dp = get_phase_config(cfg, "dynamic")
+    stp = get_phase_config(cfg, "static")
+
+    surface: dict[str, Any] = {}
+    if sp.get("enabled", True):
+        try:
+            surface = run_surface_analysis(
+                sample_path,
+                container=(sp.get("container") or None) or None,
+                timeout_sec=int(sp.get("timeout_sec", 600)),
+            )
+        except Exception as e:
+            log.exception("Surface phase failed")
+            surface = _err_payload(e)
+    else:
+        surface = {"status": "skipped", "reason": "surface disabled in config"}
+
+    unpack: dict[str, Any] = {"status": "skipped", "reason": "not run"}
+    try:
+        unpack = run_unpack_stage(
+            sample_path,
+            surface,
+            enabled=bool(up.get("enabled", True)),
+            timeout_sec=int(up.get("timeout_sec", 180)),
+            max_attempts=int(up.get("max_attempts_per_sample", 2)),
+        )
+    except Exception as e:
+        log.exception("Unpack stage failed")
+        unpack = {"status": "failed", "error": str(e)}
+
+    static_input = sample_path
+    oep_rva: Optional[str] = None
+    unpack_meta: Optional[dict[str, Any]] = None
+    if unpack.get("status") == "completed" and unpack.get("unpacked_path"):
+        static_input = str(unpack["unpacked_path"])
+        oep_rva = unpack.get("oep_rva")
+        unpack_meta = dict(unpack)
+
+    try:
+        dynamic = run_dynamic_analysis(
+            sample_path,
+            enabled=bool(dp.get("enabled", False)),
+            timeout_sec=int(dp.get("timeout_sec", 120)),
+        )
+    except Exception as e:
+        log.exception("Dynamic phase failed")
+        dynamic = _err_payload(e)
+
+    static: dict[str, Any] = {}
+    if stp.get("enabled", True):
+        try:
+            static = run_static_analysis(
+                static_input,
+                image=str(stp.get("ghidra_image") or "ghidra-headless:latest"),
+                timeout_sec=int(stp.get("timeout_sec", 600)),
+                oep_rva=oep_rva,
+                unpack_meta=unpack_meta,
+            )
+        except Exception as e:
+            log.exception("Static phase failed")
+            static = static_failed(str(e), detail=getattr(e, "detail", "") or "")
+            if isinstance(e, MauError):
+                static["type"] = e.__class__.__name__
+    else:
+        static = {"status": "skipped", "reason": "static disabled in config", "engine": "ghidra_headless"}
+
+    return surface, unpack, dynamic, static
 
 
 def _stage_leaves_for_analysis(leaves: list[Path], samples_dir: Path) -> list[Path]:
@@ -77,50 +154,7 @@ def run_pipeline(
     cfg = load_config(config_path)
     name = sample_name or __import__("os").path.basename(sample_path)
 
-    surface: dict[str, Any] = {}
-    dynamic: dict[str, Any] = {}
-    static: dict[str, Any] = {}
-
-    sp = get_phase_config(cfg, "surface")
-    if sp.get("enabled", True):
-        try:
-            surface = run_surface_analysis(
-                sample_path,
-                container=(sp.get("container") or None) or None,
-                timeout_sec=int(sp.get("timeout_sec", 600)),
-            )
-        except Exception as e:
-            log.exception("Surface phase failed")
-            surface = _err_payload(e)
-    else:
-        surface = {"status": "skipped", "reason": "surface disabled in config"}
-
-    dp = get_phase_config(cfg, "dynamic")
-    try:
-        dynamic = run_dynamic_analysis(
-            sample_path,
-            enabled=bool(dp.get("enabled", False)),
-            timeout_sec=int(dp.get("timeout_sec", 120)),
-        )
-    except Exception as e:
-        log.exception("Dynamic phase failed")
-        dynamic = _err_payload(e)
-
-    stp = get_phase_config(cfg, "static")
-    if stp.get("enabled", True):
-        try:
-            static = run_static_analysis(
-                sample_path,
-                image=str(stp.get("ghidra_image") or "ghidra-headless:latest"),
-                timeout_sec=int(stp.get("timeout_sec", 600)),
-            )
-        except Exception as e:
-            log.exception("Static phase failed")
-            static = static_failed(str(e), detail=getattr(e, "detail", "") or "")
-            if isinstance(e, MauError):
-                static["type"] = e.__class__.__name__
-    else:
-        static = {"status": "skipped", "reason": "static disabled in config", "engine": "ghidra_headless"}
+    surface, unpack, dynamic, static = _run_phases_for_sample(sample_path, cfg)
 
     rep_cfg = cfg.get("report") or {}
     ollama_cfg = cfg.get("ollama") or {}
@@ -130,6 +164,7 @@ def run_pipeline(
             dynamic,
             static,
             sample_name=name,
+            unpack=unpack,
             html=bool(rep_cfg.get("html", True)),
             executive_summary_llm=bool(rep_cfg.get("executive_summary_llm", False)),
             ollama_base_url=str(ollama_cfg.get("base_url", "http://127.0.0.1:11434")),
@@ -139,7 +174,7 @@ def run_pipeline(
         log.exception("Report generation failed")
         raise PhaseError("Report generation failed", str(e)) from e
 
-    return {"report": report, "surface": surface, "dynamic": dynamic, "static": static}
+    return {"report": report, "surface": surface, "unpack": unpack, "dynamic": dynamic, "static": static}
 
 
 def run_pipeline_with_intake(
@@ -185,55 +220,15 @@ def run_pipeline_with_intake(
         return {"report": report, "surface": surface, "dynamic": dynamic, "static": static, "intake": intake}
 
     children: list[dict[str, Any]] = []
-    sp = get_phase_config(cfg, "surface")
-    dp = get_phase_config(cfg, "dynamic")
-    stp = get_phase_config(cfg, "static")
 
     for leaf in leaf_paths:
         if not leaf.is_file():
             continue
         child_name = leaf.name
-        surface: dict[str, Any] = {}
-        dynamic: dict[str, Any] = {}
-        static: dict[str, Any] = {}
-
-        if sp.get("enabled", True):
-            try:
-                surface = run_surface_analysis(
-                    str(leaf),
-                    container=(sp.get("container") or None) or None,
-                    timeout_sec=int(sp.get("timeout_sec", 600)),
-                )
-            except Exception as e:
-                log.exception("Surface failed for %s", leaf)
-                surface = _err_payload(e)
-        else:
-            surface = {"status": "skipped"}
-
-        try:
-            dynamic = run_dynamic_analysis(
-                str(leaf),
-                enabled=bool(dp.get("enabled", False)),
-                timeout_sec=int(dp.get("timeout_sec", 120)),
-            )
-        except Exception as e:
-            dynamic = _err_payload(e)
-
-        if stp.get("enabled", True):
-            try:
-                static = run_static_analysis(
-                    str(leaf),
-                    image=str(stp.get("ghidra_image") or "ghidra-headless:latest"),
-                    timeout_sec=int(stp.get("timeout_sec", 600)),
-                )
-            except Exception as e:
-                log.exception("Static failed for %s", leaf)
-                static = static_failed(str(e), detail=getattr(e, "detail", "") or "")
-        else:
-            static = {"status": "skipped", "engine": "ghidra_headless"}
+        surface, unpack, dynamic, static = _run_phases_for_sample(str(leaf), cfg)
 
         verdict = _child_verdict(surface, dynamic, static)
-        mal = extract_malicious_findings(child_name, surface)
+        mal = extract_malicious_findings(child_name, surface, static)
         children.append(
             {
                 "path": child_name,
@@ -241,6 +236,7 @@ def run_pipeline_with_intake(
                 "highlights": extract_highlights(surface),
                 "malicious_findings": mal,
                 "phase1_surface": surface,
+                "phase1b_unpack": unpack,
                 "phase2_dynamic": dynamic,
                 "phase3_static": static,
             }
@@ -260,6 +256,7 @@ def run_pipeline_with_intake(
         intake_meta=intake,
         children=children,
         primary_surface=primary.get("phase1_surface") or {},
+        primary_unpack=primary.get("phase1b_unpack") or {"status": "skipped"},
         primary_dynamic=primary.get("phase2_dynamic") or {},
         primary_static=primary.get("phase3_static") or {},
         html=bool(rep_cfg.get("html", True)),

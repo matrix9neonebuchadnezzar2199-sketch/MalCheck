@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RE 解析パイプライン（アンパック・耐解析）- MalCheck Docs</title>
+  <style>
+:root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#e6edf3; --muted:#8b949e; --accent:#58a6ff; --ok:#3fb950; --warn:#d29922; --bad:#f85149; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:15px/1.7 system-ui, "Segoe UI", Meiryo, sans-serif; }
+.topbar { position:sticky; top:0; z-index:2; background:rgba(22,27,34,.96); border-bottom:1px solid var(--border); padding:12px 20px; }
+.brand { max-width:1120px; margin:0 auto; font-weight:700; }
+.brand span { color:var(--muted); font-weight:500; margin-left:8px; }
+.layout { max-width:1120px; margin:0 auto; display:grid; grid-template-columns:240px 1fr; gap:24px; padding:24px 20px 56px; }
+.nav { position:sticky; top:64px; border:1px solid var(--border); border-radius:8px; background:var(--panel); padding:12px; }
+.nav-title { color:var(--muted); font-size:12px; margin:0 0 8px; text-transform:uppercase; }
+.nav a { display:block; color:var(--accent); text-decoration:none; padding:6px 8px; border-radius:6px; font-size:14px; }
+.nav a.current { background:rgba(88,166,255,.18); font-weight:600; }
+main { border:1px solid var(--border); border-radius:10px; background:var(--panel); padding:28px; }
+h1 { margin-top:0; border-bottom:1px solid var(--border); padding-bottom:.35em; }
+h2 { border-bottom:1px solid var(--border); padding-bottom:.25em; }
+code { background:rgba(110,118,129,.24); border-radius:6px; padding:.15em .35em; font-size:.92em; }
+pre.mermaid { background:#010409; border:1px solid var(--border); border-radius:8px; padding:16px; overflow:auto; }
+table { width:100%; border-collapse:collapse; margin:1em 0; }
+th, td { border:1px solid var(--border); padding:8px 10px; }
+th { background:#0b1018; }
+.meta { color:var(--muted); font-size:13px; }
+@media (max-width:860px) { .layout { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <header class="topbar"><div class="brand">MalCheck Docs <span>RE pipeline</span></div></header>
+  <div class="layout">
+    <aside class="nav">
+      <p class="nav-title">Documents</p>
+      <a href="architecture.html">Architecture</a>
+      <a href="milestones.html">Milestones</a>
+      <a href="implementation-rules.html">Implementation Rules</a>
+      <a href="development-diary.html">Development Diary</a>
+      <a href="feature-analysis.html">Feature Analysis</a>
+      <a href="capability-analysis.html">Capability Matrix</a>
+      <a class="current" href="re-analysis-pipeline.html">RE Pipeline</a>
+      <a href="static-analysis-schema.html">Static JSON Schema</a>
+    </aside>
+    <main>
+      <div class="meta"><span>HTML canonical</span> · Updated 2026-06-05 · Milestone RE</div>
+      <h1>RE 解析パイプライン（表層 + 静的）</h1>
+      <p>動的解析は REMnux / 外部ラボ任せとし、MalCheck は <strong>PE のパック検出 → 自動アンパック → Ghidra</strong> と <strong>耐解析・難読化シグナルのレポート統合</strong> に集中します。</p>
+
+      <h2>フロー</h2>
+      <pre class="mermaid">flowchart TD
+    sample[PE_sample] --> surface[Phase1_surface]
+    surface --> gate{packer_suspected}
+    gate -->|yes| unpack[Phase1b_unpack]
+    gate -->|no| ghidraIn[Ghidra_input]
+    unpack -->|completed| ghidraIn[unpacked_PE]
+    unpack -->|failed| ghidraIn[original_PE]
+    ghidraIn --> static[Phase3_Ghidra]
+    surface --> report[Report_2_1]
+    unpack --> report
+    static --> report</pre>
+
+      <h2>Phase 1b — アンパック</h2>
+      <p>実装: <code>mau/unpack_stage.py</code> · 設定: <code>phases.unpack</code> in <code>compose/config/analyzer.yaml</code></p>
+      <table>
+        <thead><tr><th>項目</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td>トリガー</td><td>DIE / 高エントロピー / pefile 高エントロピーセクション / <code>packer.detected</code></td></tr>
+          <tr><td>ツール順</td><td>UPX (<code>upx -d</code>) → unipacker（オーケストレータに pip 導入時）</td></tr>
+          <tr><td>成功時</td><td><code>phase1b_unpack.unpacked_path</code> を Ghidra 入力に、<code>oep_rva</code> を <code>MAU_OEP_RVA</code> で headless に渡す</td></tr>
+          <tr><td>失敗時</td><td>元 PE で静的解析継続（パイプラインは落とさない）</td></tr>
+          <tr><td>成果物</td><td>展開 PE は <code>results/unpack/</code> のみ（リポジトリにコミットしない）</td></tr>
+        </tbody>
+      </table>
+
+      <h2>表層 — 耐解析・難読化</h2>
+      <ul>
+        <li><code>format_scanners.py</code>: TLS、anti-debug imports、ASLR/DEP 無効、パッカーっぽいセクション名</li>
+        <li><code>analyze.py</code>: capa の anti-analysis / anti-vm 要約（<code>capa_anti_analysis</code>）</li>
+        <li><code>analyze.py</code>: パック疑い PE で FLOSS（未インストール時は <code>success=false</code> で継続）</li>
+      </ul>
+
+      <h2>静的 — decompile_insights ロールアップ</h2>
+      <ul>
+        <li><code>scripts/ghidra/auto_analyze.py</code>: 関数別 <code>decompile_insights</code>（anti-debug、goto 平坦化等）</li>
+        <li><code>mau/re_insights.py</code>: プログラム全体の <code>anti_analysis_signals</code> / <code>obfuscation_stats</code></li>
+        <li>レポート: <code>re_analysis</code> セクション + verdict 加点</li>
+      </ul>
+
+      <h2>限界（期待値の調整）</h2>
+      <ul>
+        <li>全パッカーの自動 OEP は保証しない（UPX / unipacker 対応範囲のみ）</li>
+        <li>偽 OEP・多重パックは手動 RE が必要なことがある</li>
+        <li>FLOSS / unipacker は surface / orchestrator イメージの再ビルドが必要</li>
+        <li>.NET（de4dot）・ELF 専用パスは本マイルストーンの対象外</li>
+      </ul>
+
+      <p>機能一覧の正本: <a href="capability-analysis.html">Capability Matrix</a></p>
+    </main>
+  </div>
+</body>
+</html>

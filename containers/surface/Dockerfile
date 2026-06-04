@@ -6,6 +6,7 @@ LABEL description="Lightweight surface analysis (alternative to full REMnux)"
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libmagic1 \
         file \
+        upx-ucl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY containers/surface/requirements.txt /tmp/requirements.txt

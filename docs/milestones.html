@@ -148,6 +148,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 <a href="development-diary.html">Development Diary</a>
 <a href="feature-analysis.html">Feature Analysis</a>
 <a href="capability-analysis.html">Capability Matrix</a>
+<a href="re-analysis-pipeline.html">RE Pipeline</a>
 <a href="static-analysis-schema.html">Static JSON Schema</a>
     </aside>
     <main>
@@ -398,6 +399,22 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 <ul>
 <li>Dry-run packaging on a development machine.</li>
 <li>Manual deploy smoke in an isolated test environment.</li>
+</ul>
+<h2 id="milestone-re-surface-static-re-hardening">Milestone RE: Surface + Static RE Hardening</h2>
+<p>Purpose: focus MalCheck on surface + static reverse-engineering triage (dynamic analysis remains REMnux / external lab).</p>
+<p>Scope delivered:</p>
+<ul>
+<li>PE anti-analysis surface findings (TLS, anti-debug imports, capa anti-analysis summary).</li>
+<li>FLOSS optional scanner when packer is suspected.</li>
+<li><code>phase1b_unpack</code> stage (UPX then unipacker) with Ghidra input swap and <code>MAU_OEP_RVA</code>.</li>
+<li><code>mau/re_insights.py</code> rollup of <code>decompile_insights</code> into report <code>re_analysis</code> and verdict.</li>
+<li>Docs: <a href="re-analysis-pipeline.html">re-analysis-pipeline.html</a>.</li>
+</ul>
+<p>Acceptance criteria:</p>
+<ul>
+<li><code>pytest tests -v</code> passes including <code>test_re_insights</code> and <code>test_unpack_stage</code>.</li>
+<li>Benign / non-packed PE: unpack <code>skipped</code>, pipeline unchanged.</li>
+<li>HTML report shows RE section when anti-analysis or unpack metadata exists.</li>
 </ul>
 <h2 id="backlog">Backlog</h2>
 <ul>

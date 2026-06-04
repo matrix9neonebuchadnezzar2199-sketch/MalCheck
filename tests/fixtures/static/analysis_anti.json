@@ -1,0 +1,34 @@
+{
+  "file_name": "packed.exe",
+  "architecture": "x86:LE:32:default",
+  "functions": [
+    {
+      "name": "entry",
+      "address": "0x401000",
+      "decompiled_c": "BOOL entry(void) { return IsDebuggerPresent(); }",
+      "decompile_insights": {
+        "signals": [
+          {
+            "id": "anti_debug",
+            "severity": "high",
+            "label": "Debugger detection API"
+          }
+        ],
+        "stats": {"line_count": 1, "goto_count": 0, "heavy_goto_flattening": false}
+      }
+    },
+    {
+      "name": "sub_401100",
+      "address": "0x401100",
+      "decompiled_c": "void f(void) { while(1) { goto L1; } L1:; }",
+      "decompile_insights": {
+        "signals": [
+          {"id": "goto_flatten", "severity": "medium", "label": "Many gotos"}
+        ],
+        "stats": {"line_count": 5, "goto_count": 12, "heavy_goto_flattening": true}
+      }
+    }
+  ],
+  "suspicious_apis": [],
+  "truncated": false
+}

@@ -29,6 +29,8 @@ def run_static_analysis(
     image: str = "ghidra-headless:latest",
     timeout_sec: int = 600,
     output_subdir: Optional[str] = None,
+    oep_rva: Optional[str] = None,
+    unpack_meta: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """
     Run ghidra-headless container once; collect analysis.json (auto_analyze) and optional legacy files.
@@ -71,6 +73,16 @@ def run_static_analysis(
     mem = os.environ.get("MAU_GHIDRA_MEM", "4g")
     kwargs["mem_limit"] = mem
 
+    environment: dict[str, str] = {}
+    if oep_rva:
+        environment["MAU_OEP_RVA"] = str(oep_rva).strip()
+    if unpack_meta:
+        import json
+
+        environment["MAU_UNPACK_META"] = json.dumps(unpack_meta, default=str)[:4000]
+    if environment:
+        kwargs["environment"] = environment
+
     log.info("Starting Ghidra container image=%s sample=%s", image, host_sample)
     try:
         out = client.containers.run(**kwargs)
@@ -84,6 +96,8 @@ def run_static_analysis(
         log.debug("Ghidra container output (tail): %s", log_text[-2000:])
 
     result = load_static_outputs(static_dir, image=image)
+    if unpack_meta and isinstance(result.get("analysis_json"), dict):
+        result["analysis_json"]["unpack_meta"] = unpack_meta
     if result.get("status") == "failed" and log_text and "analysis.json" not in log_text:
         result["logs"] = {**result.get("logs", {}), "container_tail": log_text[-4000:]}
     return result

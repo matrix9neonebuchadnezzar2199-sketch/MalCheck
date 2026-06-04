@@ -662,6 +662,35 @@ def _collect_imports(program, out):
         rows += 1
 
 
+def _apply_oep_from_env(program):
+    """Set external entry point from MAU_OEP_RVA (hex RVA) when provided."""
+    try:
+        rva_s = os.environ.get("MAU_OEP_RVA", "").strip()
+        if not rva_s:
+            return
+        if rva_s.lower().startswith("0x"):
+            rva = int(rva_s, 16)
+        else:
+            rva = int(rva_s, 16)
+        base = program.getImageBase().getOffset()
+        addr = program.getAddressFactory().getDefaultAddressSpace().getAddress(base + rva)
+        st = program.getSymbolTable()
+        st.addExternalEntryPoint(addr)
+        println(u"[CyberGhidra] Applied MAU_OEP_RVA entry @ " + str(addr))
+    except Exception as e:
+        println(u"[CyberGhidra] MAU_OEP_RVA apply failed: " + unicode(e))
+
+
+def _unpack_meta_from_env():
+    try:
+        raw = os.environ.get("MAU_UNPACK_META", "").strip()
+        if not raw:
+            return None
+        return json.loads(raw)
+    except Exception:
+        return None
+
+
 def run():
     global _run_already
     if _run_already:
@@ -673,6 +702,8 @@ def run():
     if program is None:
         println("[CyberGhidra] No program loaded")
         return
+
+    _apply_oep_from_env(program)
 
     result = {
         "file_name": program.getName(),
@@ -686,6 +717,7 @@ def run():
         "suspicious_apis": [],
         "truncated": False,
         "call_graph": None,
+        "unpack_meta": _unpack_meta_from_env(),
     }
 
     sym_table = program.getSymbolTable()

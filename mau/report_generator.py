@@ -60,6 +60,30 @@ def aggregate_iocs(surface: dict[str, Any], dynamic: dict[str, Any], static: dic
     return {"hashes": hashes, "urls": sorted(set(urls)), "ips": sorted(set(ips))}
 
 
+def build_re_analysis(surface: dict[str, Any], static: dict[str, Any]) -> dict[str, Any]:
+    """Surface + static anti-analysis / obfuscation rollup for reports."""
+    surface_anti: list[dict[str, Any]] = []
+    for h in extract_highlights(surface):
+        rule = str(h.get("rule") or "")
+        if rule in (
+            "pe_anti_analysis_imports",
+            "pe_tls_callbacks",
+            "capa_anti_analysis",
+        ) or "anti" in rule.lower():
+            surface_anti.append(h)
+    static_signals: list[dict[str, Any]] = []
+    obfuscation_stats: dict[str, Any] = {}
+    summ = static.get("summary") if isinstance(static, dict) else None
+    if isinstance(summ, dict):
+        static_signals = list(summ.get("top_anti_analysis_signals") or [])
+        obfuscation_stats = summ.get("obfuscation_stats") or {}
+    return {
+        "surface_anti_analysis": surface_anti[:20],
+        "static_anti_analysis": static_signals[:20],
+        "obfuscation_stats": obfuscation_stats,
+    }
+
+
 def calculate_verdict(
     surface: dict[str, Any],
     dynamic: dict[str, Any],
@@ -79,6 +103,10 @@ def calculate_verdict(
             if sus > 0:
                 score += min(25, sus * 5)
                 reasons.append(f"static: suspicious APIs ({sus})")
+            anti_n = int(summ.get("anti_analysis_count") or 0)
+            if anti_n > 0:
+                score += min(20, anti_n * 8)
+                reasons.append(f"static: anti-analysis signals ({anti_n})")
             if summ.get("truncated"):
                 score += 5
                 reasons.append("static: Ghidra export truncated")
@@ -123,6 +151,7 @@ def generate_report(
     static: dict[str, Any],
     *,
     sample_name: str,
+    unpack: Optional[dict[str, Any]] = None,
     out_dir: Optional[Path] = None,
     html: bool = True,
     executive_summary_llm: bool = False,
@@ -143,15 +172,18 @@ def generate_report(
         "meta": {"schema_version": REPORT_SCHEMA_VERSION, "timestamp": ts, "sample_name": sample_name},
         "verdict": verdict,
         "phase1_surface": surface,
+        "phase1b_unpack": unpack or {"status": "skipped"},
         "phase2_dynamic": dynamic,
         "phase3_static": static,
         "phase_status": {
             "surface": _phase_status(surface),
+            "unpack": _phase_status(unpack or {"status": "skipped"}),
             "dynamic": _phase_status(dynamic),
             "static": _phase_status(static),
         },
         "iocs": iocs,
         "mitre_mapping": surface.get("mitre") if isinstance(surface, dict) else None,
+        "re_analysis": build_re_analysis(surface, static),
     }
 
     if executive_summary_llm:
@@ -211,6 +243,7 @@ def generate_aggregated_report(
     primary_surface: dict[str, Any],
     primary_dynamic: dict[str, Any],
     primary_static: dict[str, Any],
+    primary_unpack: Optional[dict[str, Any]] = None,
     out_dir: Optional[Path] = None,
     html: bool = True,
     executive_summary_llm: bool = False,
@@ -252,6 +285,7 @@ def generate_aggregated_report(
                     "verdict": ch.get("verdict"),
                     "highlights": ch.get("highlights"),
                     "phase1_surface": ch.get("phase1_surface"),
+                    "phase1b_unpack": ch.get("phase1b_unpack"),
                     "phase2_dynamic": ch.get("phase2_dynamic"),
                     "phase3_static": ch.get("phase3_static"),
                 }
@@ -260,15 +294,18 @@ def generate_aggregated_report(
         },
         "malicious_findings": malicious,
         "phase1_surface": primary_surface,
+        "phase1b_unpack": primary_unpack or {"status": "skipped"},
         "phase2_dynamic": primary_dynamic,
         "phase3_static": primary_static,
         "phase_status": {
             "surface": _phase_status(primary_surface),
+            "unpack": _phase_status(primary_unpack or {"status": "skipped"}),
             "dynamic": _phase_status(primary_dynamic),
             "static": _phase_status(primary_static),
         },
         "iocs": iocs,
         "mitre_mapping": primary_surface.get("mitre") if isinstance(primary_surface, dict) else None,
+        "re_analysis": build_re_analysis(primary_surface, primary_static),
     }
 
     out_dir = out_dir or Path(os.environ.get("RESULTS_DIR", "results")) / "reports"
