@@ -17,16 +17,32 @@
 
 MalCheck は、以下のフェーズを統合実行する **フェーズ指向マルウェア解析オーケストレーター** です。
 
-- **Phase 1 - 表層解析**（ハッシュ、文字列、IOC抽出、YARA/capa、エントロピー/パッカー推定）
-- **Phase 2 - 動的解析コントラクト**（hook first、将来のサンドボックス連携を前提）
-- **Phase 3 - 静的解析**（ネットワーク隔離した Ghidra headless）
+- **Intake** — ZIP/7z の安全展開（パスワード `infected` 等）、ネスト上限、子ファイルごとの再解析
+- **Phase 1 - 表層解析** — ハッシュ、文字列、IOC、YARA/capa、DIE、**pefile / oletools / pdfid**
+- **Phase 2 - 動的解析コントラクト** — hook first（既定は `skipped`）
+- **Phase 3 - 静的解析** — ネットワーク隔離 Ghidra headless → **`analysis.json`**（CFG・コールグラフ・関数別デコンパイル）
 
 出力は次の2系統です。
 
-- **機械可読な JSON レポート**
-- **アナリスト向け HTML レポート**
+- **機械可読な JSON レポート**（schema **2.1**：`intake.children[]` / `malicious_findings`）
+- **アナリスト向け HTML レポート**（悪性検出時は警告バナー + Ghidra サマリ）
 
-MalCheck は **ローカル環境・エアギャップ環境** での運用を想定し、マルウェア解析向けの安全境界を明示的に維持します。
+MalCheck は **ローカル環境・エアギャップ環境** での運用を想定し、マルウェア解析向けの安全境界を明示的に維持します。旧 Cyber Ghidra WebUI の Ghidra 出力契約は MalCheck に統合済み（React UI は移植していません）。
+
+### パイプライン概要
+
+```mermaid
+flowchart TD
+    upload[Upload_or_CLI] --> intake[Intake_mau/intake.py]
+    intake -->|archive| extract[Safe_extract_passwords]
+    intake -->|single| leaves[Leaf_files]
+    extract --> leaves
+    leaves --> surface[Phase1_Surface]
+    leaves --> static[Phase3_Ghidra_analysis.json]
+    surface --> merge[Aggregate_report_2.1]
+    static --> merge
+    merge --> html[HTML_plus_JSON]
+```
 
 英語版が必要な場合は [`README_JP.md`](README_JP.md) を参考に、今後 `README.md` の英訳版を追加してください。
 
@@ -44,6 +60,8 @@ MalCheck は「統合解析の母艦」です。
 
 - [`docs/architecture.html`](docs/architecture.html)
 - [`docs/milestones.html`](docs/milestones.html)
+- [`docs/feature-analysis.html`](docs/feature-analysis.html)（機能マップ・シーケンス図）
+- [`docs/static-analysis-schema.html`](docs/static-analysis-schema.html)（Ghidra `analysis.json`）
 - [`docs/implementation-rules.html`](docs/implementation-rules.html)
 - [`docs/development-diary.html`](docs/development-diary.html)
 
@@ -53,13 +71,14 @@ MalCheck は「統合解析の母艦」です。
 
 ### 1) フェーズ指向パイプライン
 
-`mau.phase_router.run_pipeline()` は次を制御します:
+`mau.phase_router.run_pipeline_with_intake()`（Web UI / 推奨 CLI）は次を制御します:
 
-- `surface` -> 高速かつ耐障害性を重視した初期トリアージ
-- `dynamic` -> skipped / not_implemented / hook結果
-- `static` -> Ghidraコンテナ実行
+- `intake` -> アーカイブ解凍・子ファイルステージング（`samples/_intake/`）
+- `surface` -> 高速トリアージ（format scanners 含む）
+- `dynamic` -> skipped / not_implemented / hook 結果
+- `static` -> Ghidra headless → `phase3_static.analysis_json`
 
-各フェーズの失敗は分離され、パイプライン全体を停止させる代わりにレポートへ構造化記録されます。
+単一ファイルのみの場合は `run_pipeline()` も利用可能。各フェーズの失敗は分離され、レポートへ構造化記録されます。
 
 ### 2) オフラインファースト運用
 
@@ -76,9 +95,11 @@ MalCheck は「統合解析の母艦」です。
 
 現行レポート契約の代表項目:
 
-- `meta.schema_version`
+- `meta.schema_version`（**2.1**）
+- `intake` / `malicious_findings`（アーカイブ・子ファイル集約時）
 - `phase_status.surface/dynamic/static`
-- normalized phase payloads
+- `phase3_static.summary`（関数数・suspicious API・truncated）
+- `phase3_static.analysis_json`（Ghidra 詳細 JSON、HTML では折りたたみ表示）
 
 ### 4) 拡張可能な動的解析連携
 
@@ -104,10 +125,16 @@ docker compose up -d
 docker exec orchestrator python -m mau.main suspect.exe
 ```
 
-Web UI:
+Web UI（`archive_password` 既定 `infected`）:
 
 ```text
 http://127.0.0.1:8080
+```
+
+CLI（アーカイブ対応）:
+
+```text
+python -m mau.main suspect.zip --archive-password infected
 ```
 
 ### B. FLARE VM / オフライン運用（Windows）
@@ -197,8 +224,10 @@ pytest tests -v
 現行テストで確認している内容:
 
 - 設定ロード / マージ挙動
-- 表層解析 JSON コントラクト
-- レポート集約と verdict ロジック
+- intake（ZIP / AES `infected` パスワード）
+- 表層解析 JSON コントラクト / format scanners
+- 静的出力正規化（`mau/static_normalize.py`、Ghidra 不要）
+- レポート集約・verdict 昇格（子ファイル max score）
 - dynamic hook 出力の正規化
 - CLI のエラー / 終了コード挙動
 
@@ -220,30 +249,34 @@ See full rules in [`docs/implementation-rules.html`](docs/implementation-rules.h
 ## リポジトリ構成
 
 ```text
-mau/                     # core orchestrator and report generation
-scripts/remnux/          # surface analysis script
-build/ghidra-headless/   # Ghidra static image assets
-containers/surface/      # lightweight surface-analysis container
+mau/                     # orchestrator, intake, report, static_normalize
+scripts/remnux/          # surface analyze.py + format_scanners.py
+scripts/ghidra/            # auto_analyze.py (canonical; copied into image)
+build/ghidra-headless/     # Ghidra Docker image + entrypoint
+containers/surface/      # surface-analysis container
 web_ui/                  # FastAPI + Jinja web interface
-compose/config/          # runtime analyzer config
+compose/config/          # runtime analyzer config (intake.*)
 rules/yara/              # YARA rules
 tests/                   # pytest suite
-docs/                    # architecture, milestones, rules, diary
+docs/                    # HTML canonical documentation
 ```
 
 ---
 
 ## ロードマップ概要
 
-直近マイルストーン:
+完了済み（2026-06）:
 
-1. Surface analysis consolidation (stable scanner contract)
-2. Richer static output integration
-3. Report/UI improvements
-4. Dynamic hook contract hardening
-5. Optional CAPE/VM integration
+- **M-U** — アーカイブ intake、PE/Office/PDF scanners、集約レポート 2.1
+- **M2** — `auto_analyze.py` / `analysis.json`、Ghidra 1-pass、cyber-ghidra 退役
 
-Detailed plan: [`docs/milestones.html`](docs/milestones.html)
+次の候補:
+
+1. レポート HTML の Web 配信（パス表示のみ → ブラウザで直接閲覧）
+2. IOC 拡充・エクスポート（STIX/CSV）
+3. Dynamic hook / 任意 CAPE 連携
+
+詳細: [`docs/milestones.html`](docs/milestones.html)
 
 ---
 

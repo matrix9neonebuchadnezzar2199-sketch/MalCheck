@@ -147,18 +147,20 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 <a href="implementation-rules.html">Implementation Rules</a>
 <a href="development-diary.html">Development Diary</a>
 <a href="feature-analysis.html">Feature Analysis</a>
+<a href="static-analysis-schema.html">Static JSON Schema</a>
     </aside>
     <main>
-      <div class="meta"><span class="badge">HTML canonical</span> Generated from the repository documentation source on 2026-06-02.</div>
+      <div class="meta"><span class="badge">HTML canonical</span> Updated 2026-06-05 (M-U + M2).</div>
       <h1 id="malcheck-integrated-architecture">MalCheck Integrated Architecture</h1>
-<p>Last updated: 2026-06-02</p>
+<p>Last updated: 2026-06-05</p>
 <h2 id="purpose">Purpose</h2>
-<p>MalCheck is the long-term home for a unified malware analysis workflow. The goal is to keep MalCheck's phase-based orchestration and report generation, while bringing in the strongest parts of Cyber Ghidra WebUI: richer Ghidra JSON, static scanner plugins, unpacking, and reverse-engineering focused UI patterns.</p>
+<p>MalCheck is the long-term home for a unified malware analysis workflow. It orchestrates intake, surface/static/dynamic phases, and schema <strong>2.1</strong> reports for offline and lab use. Rich Ghidra JSON (<code>analysis.json</code>) and format-specific surface scanners are integrated in-tree; the former Cyber Ghidra WebUI repository has been retired.</p>
 <p>The target product is not a live Ghidra replacement. It is an offline-friendly analysis orchestrator that accepts a sample, runs surface/static/dynamic phases under explicit safety boundaries, and produces machine-readable JSON plus analyst-friendly reports.</p>
 <h2 id="current-baseline">Current Baseline</h2>
 <p>MalCheck already has the core orchestration shape:</p>
 <ul>
-<li><code>mau.phase_router.run_pipeline()</code> runs <code>surface</code>, <code>dynamic</code>, and <code>static</code> phases.</li>
+<li><code>mau.phase_router.run_pipeline_with_intake()</code> runs <code>intake</code> then per-leaf <code>surface</code>, <code>dynamic</code>, and <code>static</code> (aggregated parent report).</li>
+<li><code>mau.phase_router.run_pipeline()</code> remains for single-file runs without archive expansion.</li>
 <li><code>mau.surface_runner</code> delegates surface analysis to a Docker container or local fallback.</li>
 <li><code>mau.dynamic_analyzer</code> is a structured stub with optional <code>MAU_DYNAMIC_HOOK</code>.</li>
 <li><code>mau.static_analyzer</code> launches a network-isolated Ghidra container.</li>
@@ -198,26 +200,28 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 </ol>
 <h2 id="target-pipeline">Target Pipeline</h2>
 <pre class="mermaid">flowchart TD
-    sample[Sample] --&gt; intake[Intake and Validation]
-    intake --&gt; surface[Phase 1 Surface]
-    intake --&gt; static[Phase 3 Static]
-    intake --&gt; dynamic[Phase 2 Dynamic Hook]
+    sample[Sample] --&gt; intake[Intake_and_Validation]
+    intake --&gt; leaves[Leaf_files_per_child]
 
-    surface --&gt; scanners[Scanner Adapter]
-    scanners --&gt; surfaceJson[Surface JSON]
+    leaves --&gt; surface[Phase_1_Surface]
+    leaves --&gt; static[Phase_3_Static]
+    leaves --&gt; dynamic[Phase_2_Dynamic_Hook]
 
-    static --&gt; ghidra[Cyber Ghidra Adapter]
-    ghidra --&gt; staticJson[Static JSON]
+    surface --&gt; scanners[format_scanners_YARA_capa]
+    scanners --&gt; surfaceJson[Surface_JSON]
 
-    dynamic --&gt; dynamicJson[Dynamic JSON]
+    static --&gt; ghidra[Ghidra_headless_auto_analyze]
+    ghidra --&gt; staticJson[analysis_json_and_summary]
 
-    surfaceJson --&gt; report[Unified Report]
+    dynamic --&gt; dynamicJson[Dynamic_JSON]
+
+    surfaceJson --&gt; report[Unified_Report_2_1]
     staticJson --&gt; report
     dynamicJson --&gt; report
 
-    report --&gt; html[HTML Report]
-    report --&gt; api[JSON API]
-    report --&gt; ui[Web UI]
+    report --&gt; html[HTML_Report]
+    report --&gt; api[JSON_API]
+    report --&gt; ui[Web_UI]
 </pre>
 <h2 id="unified-report-contract">Unified Report Contract</h2>
 <p>The report must remain backward compatible with the current MalCheck keys while adding richer subdocuments.</p>
@@ -278,7 +282,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 <li>Strings sample and simple IOC extraction.</li>
 <li>Entropy and packer hints.</li>
 <li>YARA and capa results.</li>
-<li>MIME-specific scanner results once Cyber Ghidra scanner plugins are adapted.</li>
+<li>MIME-specific scanner results via <code>format_scanners</code> (PE, Office, PDF).</li>
 </ul>
 <p>Non-goals:</p>
 <ul>
@@ -316,15 +320,16 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 </ul>
 <h2 id="integration-options">Integration Options</h2>
 <h3 id="recommended-short-term-path">Recommended Short-Term Path</h3>
-<p>Use MalCheck as the orchestrator and integrate Cyber Ghidra engines through adapters:</p>
+<p>MalCheck integrates former Cyber Ghidra capabilities in-tree:</p>
 <ul>
-<li><code>surface_scanner_adapter</code>: converts Cyber Ghidra scanner results into <code>phase1_surface.scanner_results</code>.</li>
-<li><code>mau/static_normalize.py</code>: loads <code>analysis.json</code> from Ghidra headless into <code>phase3_static</code>.</li>
-<li><code>report_schema_v2</code>: lets report/UI code consume both old and new phase payloads.</li>
+<li><code>scripts/remnux/format_scanners.py</code> → <code>phase1_surface.scanner_results</code>.</li>
+<li><code>mau/intake.py</code> → safe archive expansion and <code>intake.children[]</code>.</li>
+<li><code>mau/static_normalize.py</code> → <code>phase3_static.analysis_json</code> from Ghidra headless.</li>
+<li><code>generate_aggregated_report</code> → schema 2.1 with <code>malicious_findings</code> rollup.</li>
 </ul>
 <h3 id="avoid-initially">Avoid Initially</h3>
 <ul>
-<li>Running both MalCheck Ghidra and Cyber Ghidra Ghidra pipelines in parallel.</li>
+<li>Running a second parallel Ghidra export pipeline (legacy 3-pass only via <code>MAU_GHIDRA_LEGACY=1</code>).</li>
 <li>Rebuilding the whole application as microservices before the report schema is stable.</li>
 <li>Implementing a custom VM sandbox before the dynamic JSON contract is tested.</li>
 </ul>

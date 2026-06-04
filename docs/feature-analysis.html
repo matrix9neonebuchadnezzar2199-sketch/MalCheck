@@ -149,9 +149,9 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 <a class="current" href="feature-analysis.html">Feature Analysis</a>
     </aside>
     <main>
-      <div class="meta"><span class="badge">HTML canonical</span> Updated 2026-06-04 (M-U intake/format/aggregate).</div>
+      <div class="meta"><span class="badge">HTML canonical</span> Updated 2026-06-05 (M-U + M2 Ghidra JSON).</div>
       <h1 id="malcheck">MalCheck 機能分析・理想比較レポート</h1>
-<p>最終更新: 2026-06-04
+<p>最終更新: 2026-06-05
 対象コミット時点の実装（<code>mau/</code>, <code>scripts/remnux/analyze.py</code>, <code>web_ui/</code>, <code>compose/config/analyzer.yaml</code>）に基づく。</p>
 <p>このドキュメントは次の3点を扱う。</p>
 <ol>
@@ -175,7 +175,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
         ghidra[&quot;ghidra-headless&lt;br/&gt;(任意・要ビルド)&quot;]
     end
 
-    web --&gt;|run_pipeline 直接 import| mau
+    web --&gt;|run_pipeline_with_intake| mau
     web -. docker exec .-&gt; surface
     web -. docker run --network none .-&gt; ghidra
 
@@ -191,10 +191,10 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
     surface --- samples
     ghidra --- results
 
-    mau[&quot;mau.phase_router.run_pipeline()&quot;]
+    mau[&quot;mau.phase_router.run_pipeline_with_intake()&quot;]
 </pre>
 <p>補足:
-- Web UI は <code>mau.phase_router.run_pipeline</code> を<strong>同一プロセス内で直接呼び出す</strong>（HTTP 越しに orchestrator を叩く構成ではない）。<code>orchestrator</code> コンテナは CLI 実行用に常駐しているが、Web 経路では surface コンテナへの <code>docker exec</code> と Ghidra の <code>docker run</code> を web コンテナ自身が Docker ソケット経由で行う。
+- Web UI は <code>mau.phase_router.run_pipeline_with_intake</code> を<strong>同一プロセス内で直接呼び出す</strong>（HTTP 越しに orchestrator を叩く構成ではない）。<code>orchestrator</code> コンテナは CLI 実行用に常駐しているが、Web 経路では surface コンテナへの <code>docker exec</code> と Ghidra の <code>docker run</code> を web コンテナ自身が Docker ソケット経由で行う。
 - 解析は同期実行（キュー/ジョブ管理なし、1リクエスト1解析）。</p>
 <h3 id="12">1.2 機能マップ（実装済み / 部分 / 未実装）</h3>
 <pre class="mermaid">flowchart TD
@@ -225,9 +225,10 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 
     root --&gt; p3[&quot;Phase 3 静的解析 ⚠️&quot;]
     p3 --&gt; t1[&quot;Ghidra headless (要イメージ)&quot;]
-    p3 --&gt; t2[&quot;decompiled.c / functions.json / metadata.json&quot;]
+    p3 --&gt; t2[&quot;analysis.json (auto_analyze) ✅&quot;]
     p3 --&gt; t3[&quot;network none + mem 制限&quot;]
-    p3 --x t4[&quot;CFG/コールグラフ/xref UI ❌ (MalCheck 側)&quot;]
+    p3 --&gt; t4[&quot;CFG/call_graph/xref in JSON ✅&quot;]
+    p3 --x t5[&quot;CFG 可視化 React UI ❌&quot;]
 
     root --&gt; rep[&quot;レポート ✅&quot;]
     rep --&gt; r1[&quot;JSON (schema 2.1 集約)&quot;]
@@ -252,7 +253,8 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
     actor U as アナリスト
     participant B as ブラウザ (index.html)
     participant W as FastAPI (/analyze)
-    participant PR as phase_router.run_pipeline
+    participant IN as intake.process_intake
+    participant PR as phase_router.run_pipeline_with_intake
     participant SR as surface_runner
     participant SC as surface-analyzer (docker exec)
     participant DY as dynamic_analyzer
@@ -262,9 +264,11 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
     participant FS as /results/reports
 
     U-&gt;&gt;B: ファイル選択 → Analyze クリック
-    B-&gt;&gt;W: POST /analyze (multipart FormData)
+    B-&gt;&gt;W: POST /analyze (multipart + archive_password)
     W-&gt;&gt;W: ファイル名検証 + /samples に保存
-    W-&gt;&gt;PR: run_pipeline(dest, sample_name)
+    W-&gt;&gt;PR: run_pipeline_with_intake(dest, archive_password)
+    PR-&gt;&gt;IN: process_intake (ZIP/7z, passwords)
+    IN--&gt;&gt;PR: leaf_paths, intake meta
     PR-&gt;&gt;PR: load_config(analyzer.yaml)
 
     rect rgb(20,40,60)
@@ -286,19 +290,19 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
     PR-&gt;&gt;ST: run_static_analysis()
     alt Ghidra イメージあり
         ST-&gt;&gt;GH: containers.run(target.bin, network none)
-        GH--&gt;&gt;ST: decompiled.c / functions.json
-        ST--&gt;&gt;PR: static dict
+        GH--&gt;&gt;ST: analysis.json
+        ST--&gt;&gt;PR: phase3_static (analysis_json, summary)
     else イメージ未ロード
         ST--&gt;&gt;PR: StaticError (フェーズ単位で失敗扱い)
     end
     end
 
-    PR-&gt;&gt;RG: generate_report(surface, dynamic, static)
+    PR-&gt;&gt;RG: generate_aggregated_report (children, malicious_findings)
     RG-&gt;&gt;FS: &lt;name&gt;.json + &lt;name&gt;.html 書き出し
-    RG--&gt;&gt;PR: report (+ _paths, verdict)
-    PR--&gt;&gt;W: {report, surface, dynamic, static}
-    W--&gt;&gt;B: JSON {ok, sample, report_json, report_html, verdict}
-    B-&gt;&gt;U: verdict ラベル / score / reasons / raw JSON 表示
+    RG--&gt;&gt;PR: report (+ _paths, verdict, intake)
+    PR--&gt;&gt;W: {report, intake, malicious_findings}
+    W--&gt;&gt;B: JSON {ok, verdict, intake, malicious_findings_count}
+    B-&gt;&gt;U: verdict / 悪性バナー / report パス表示
 </pre>
 <p>ポイント:
 - 各フェーズは <code>try/except</code> で隔離され、1フェーズの失敗が全体を止めない（static の Ghidra 未ロードは <code>failed</code> として記録され surface 結果は残る）。
@@ -444,32 +448,19 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
 </tbody>
 </table>
 <p>凡例: ◯ 有効 / △ 限定的 / ✕ 実質機能しない</p>
-<h3 id="43infected-zip">4.3「infected」パスワード付き ZIP を投入した場合（自動解凍・解析の有無）</h3>
-<p>結論: <strong>自動解凍は行われない。パスワード <code>infected</code> の試行も無い。中身は一切解析されない。</strong></p>
-<p>実際に起きること（コードパス: <code>app.py /analyze</code> → <code>analyze.py analyze()</code>）:</p>
+<h3 id="43infected-zip">4.3「infected」パスワード付き ZIP を投入した場合（M-U1 以降）</h3>
+<p>結論: <strong><code>mau/intake.py</code> により自動解凍・子ファイルごとの surface/static 解析・親レポート集約が行われる。</strong> Web UI の <code>archive_password</code> 既定値は <code>infected</code>。</p>
+<p>実際のコードパス: <code>web_ui/app.py /analyze</code> → <code>run_pipeline_with_intake</code> → <code>process_intake</code> → 子ごと <code>run_surface_analysis</code> / <code>run_static_analysis</code> → <code>generate_aggregated_report</code>。</p>
 <pre class="mermaid">flowchart TD
-    z[&quot;infected.zip&lt;br/&gt;(暗号化, pw=infected)&quot;] --&gt; save[&quot;/samples へ保存&quot;]
-    save --&gt; hash[&quot;MD5/SHA256 = ZIP 全体のハッシュ&quot;]
-    hash --&gt; ft[&quot;file type = 'Zip archive data, ... encrypted'&quot;]
-    ft --&gt; str[&quot;strings = ZIPヘッダ断片のみ&lt;br/&gt;(中身は暗号化で読めない)&quot;]
-    str --&gt; ent[&quot;entropy ≈ 7.9-8.0 → high_entropy&lt;br/&gt;packer detected = True (誤検知的)&quot;]
-    ent --&gt; scan[&quot;YARA/capa は ZIP バイト列に対して実行&lt;br/&gt;→ 中身のマルウェアには当たらない&quot;]
-    scan --&gt; gh[&quot;Ghidra: ZIP を target.bin として読込 → 関数なし/失敗&quot;]
-    gh --&gt; verdict[&quot;verdict: low〜suspicious&lt;br/&gt;(中身ではなく entropy/packer 由来)&quot;]
-
-    classDef bad fill:#3a1313,stroke:#f85149,color:#ffb;
-    class scan,gh,verdict bad
+    z[&quot;infected.zip&quot;] --&gt; save[&quot;/samples へ保存&quot;]
+    save --&gt; intake[&quot;process_intake&lt;br/&gt;passwords: '', infected, ...&quot;]
+    intake --&gt; ext[&quot;安全展開 → leaf_paths&quot;]
+    ext --&gt; stage[&quot;samples/_intake/&lt;id&gt;/ にステージ&quot;]
+    stage --&gt; loop[&quot;各子: surface + static + dynamic&quot;]
+    loop --&gt; agg[&quot;親 report schema 2.1&lt;br/&gt;intake.children[]&lt;br/&gt;malicious_findings rollup&quot;]
+    agg --&gt; out[&quot;verdict = max(子 score)&lt;br/&gt;HTML 悪性バナー（該当時）&quot;]
 </pre>
-<p>つまり、<code>infected.zip</code> を投げても得られるのは「暗号化 ZIP である」という外形情報と、エントロピー由来の弱い疑い評価のみで、<strong>梱包されたマルウェア本体は解析されない</strong>。マルウェア配布で常用される <code>infected</code> パスワード ZIP に対して、現状ツールは triage 価値をほぼ提供できない。これは優先度の高い機能ギャップ。</p>
-<h4 id="_1">あるべき挙動（推奨設計）</h4>
-<pre class="mermaid">flowchart TD
-    up[&quot;アーカイブ投入&quot;] --&gt; detect[&quot;MIME/マジック判定: zip/7z/rar/tar/gz&quot;]
-    detect --&gt; pw[&quot;パスワード試行リスト&lt;br/&gt;['', 'infected', 'malware', 'virus', ユーザー指定...]&quot;]
-    pw --&gt; ext[&quot;安全な一時領域へ展開&lt;br/&gt;(サイズ上限/ファイル数上限/zip-bomb 対策&lt;br/&gt;/パストラバーサル防止)&quot;]
-    ext --&gt; fanout[&quot;展開ファイルごとに run_pipeline を再帰実行&lt;br/&gt;(再帰深さ上限)&quot;]
-    fanout --&gt; agg[&quot;親アーカイブ配下に子レポートを集約&lt;br/&gt;verdict は子の最大リスクを伝播&quot;]
-</pre>
-<p>実装上の必須ガード: 解凍サイズ上限・展開ファイル数上限・再帰深さ上限（zip bomb）、パストラバーサル無害化、展開物は隔離領域のみ、ネットワーク無し。<code>pyzipper</code>/<code>py7zr</code>/<code>rarfile</code> 等の導入を検討。</p>
+<p>ガード（実装済み）: <code>intake.max_extract_mb</code>、<code>max_files</code>、<code>max_nested_depth</code>、パストラバーサル対策、AES ZIP は <code>pyzipper</code>。Ghidra は子 PE ごとに実行（イメージ要ビルド）。</p>
 <hr>
 <h2 id="5">5. 理想のマルウェア解析ツールとの比較</h2>
 <p>「理想」は、表層 → 静的 → 動的を横断する triage プラットフォーム（REMnux + CAPE + 静的RE + 脅威インテリ連携）を基準にする。</p>
